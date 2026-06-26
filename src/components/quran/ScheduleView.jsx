@@ -25,10 +25,10 @@ export default function ScheduleView({ schedule, onRecordDay }) {
         </div>
         <button
           onClick={() => setShowAll(!showAll)}
-          className="flex items-center gap-1 text-sm text-primary font-medium hover:text-primary/80 transition-colors"
+          className="flex items-center gap-1 rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 hover:text-primary"
         >
           {showAll ? "عرض أقل" : "عرض الكل"}
-          {showAll ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showAll ? <ChevronUp className="w-4 h-4 stroke-[2.2]" /> : <ChevronDown className="w-4 h-4 stroke-[2.2]" />}
         </button>
       </div>
 

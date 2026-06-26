@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Calendar, Target, TrendingUp, Trash2, BookOpen, Layers, Plus, ChevronDown, Settings } from "lucide-react";
+import { Calendar, Target, TrendingUp, Trash2, BookOpen, Layers, Plus, ChevronDown, Pencil } from "lucide-react";
 import { getStats, getProgress, getTodayData, recordDayProgressFlexible, undoDayProgress, formatQuranUnits, smartQuranDisplay, versesToPages } from "@/lib/quranPlanEngine";
 import { savePlan, deletePlan, loadAllPlans, setActivePlanId } from "@/lib/planStorage";
 import ProgressRing from "./ProgressRing";
@@ -18,9 +18,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, onSwitchPlan, onNewPlan }) {
+export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, onSwitchPlan, onNewPlan, onEditPlan }) {
   const [recordDay, setRecordDay] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  if (!plan || !plan.schedule || !Array.isArray(plan.schedule)) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">الخطة غير مكتملة. يرجى إنشاء خطة جديدة.</p>
+        <Button onClick={onNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
+      </div>
+    );
+  }
 
   const stats = getStats(plan);
   const progress = getProgress(plan);
@@ -44,22 +53,20 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
     onPlanUpdate(updatedPlan);
   };
 
-  const startQuarter = plan.verseRange?.startChapter
-    ? `الجزء ${Math.ceil(plan.startPage / 20)}`
-    : "";
+  const completedPages = plan.completedVerses ? versesToPages(plan.completedVerses, plan.startPage) : 0;
+  const totalPages = plan.totalPages || 1;
 
   return (
     <div className="space-y-8">
-      {/* الرأس - تعدد الخطط */}
+      {/* الرأس */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            {/* قائمة الخطط */}
             <DropdownMenu dir="rtl">
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-4 py-2.5 hover:border-primary/30 transition-colors">
                   <BookOpen className="w-4 h-4 text-primary" />
-                  <span className="font-bold text-foreground text-sm max-w-[180px] truncate">{plan.name}</span>
+                  <span className="font-bold text-foreground text-sm max-w-[180px] truncate">{plan.name || "بدون اسم"}</span>
                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
@@ -78,14 +85,22 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                 ))}
                 <div className="border-t border-border/40 mt-1 pt-1">
                   <DropdownMenuItem onClick={onNewPlan} className="text-primary font-medium">
-                    <Plus className="w-4 h-4 ml-2" />
-                    خطة جديدة
+                    <Plus className="w-4 h-4 ml-2" /> خطة جديدة
                   </DropdownMenuItem>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* زر الحذف */}
+            {/* ✅ زر التعديل */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onEditPlan(plan)}
+              className="h-10 px-3 border-primary/20 hover:bg-primary/5"
+            >
+              <Pencil className="w-4 h-4 ml-1" />
+            </Button>
+
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-destructive border-destructive/20 hover:bg-destructive/5 h-10">
@@ -95,9 +110,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
               <AlertDialogContent dir="rtl">
                 <AlertDialogHeader>
                   <AlertDialogTitle>حذف "{plan.name}"</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    هل أنت متأكد من حذف هذه الخطة؟ سيتم فقدان جميع بيانات التقدم.
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>هل أنت متأكد من حذف هذه الخطة؟ سيتم فقدان جميع بيانات التقدم.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="flex gap-2 sm:gap-2">
                   <AlertDialogCancel>إلغاء</AlertDialogCancel>
@@ -111,80 +124,66 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
 
           <p className="text-muted-foreground mt-2 text-sm flex items-center gap-2 flex-wrap">
             <span className="flex items-center gap-1">
-              {smartQuranDisplay(plan.totalVerses, plan.startPage)}
-              <QuranDetailsPopover verses={plan.totalVerses} startPage={plan.startPage} />
+              {smartQuranDisplay(plan.totalVerses || 0, plan.startPage || 1)}
+              <QuranDetailsPopover verses={plan.totalVerses || 0} startPage={plan.startPage || 1} />
             </span>
           </p>
         </div>
 
-        {/* ملخص سريع */}
         <div className="flex items-center gap-4 bg-card border border-border/60 rounded-2xl px-5 py-3">
           <div className="text-center">
             <p className="text-xs text-muted-foreground">مُنجَز</p>
-            <p className="text-lg font-bold text-emerald-600">{versesToPages(plan.completedVerses, plan.startPage)}</p>
+            <p className="text-lg font-bold text-emerald-600">{completedPages}</p>
           </div>
           <div className="w-px h-8 bg-border/60" />
           <div className="text-center">
             <p className="text-xs text-muted-foreground">متبقي</p>
-            <p className="text-lg font-bold text-accent">{plan.totalPages - versesToPages(plan.completedVerses, plan.startPage)}</p>
+            <p className="text-lg font-bold text-accent">{totalPages - completedPages}</p>
           </div>
           <div className="w-px h-8 bg-border/60" />
           <div className="text-center">
             <p className="text-xs text-muted-foreground">يوميًا</p>
-            <p className="text-lg font-bold text-primary">{plan.dailyPages}</p>
+            <p className="text-lg font-bold text-primary">{plan.dailyPages || 0}</p>
           </div>
         </div>
       </div>
 
-      {/* بطاقة اليوم + حلقة التقدم + إحصائيات */}
+      {/* باقي المكونات */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* حلقة التقدم */}
         <div className="bg-card rounded-2xl border border-border/60 p-6 flex flex-col items-center justify-center">
-          <ProgressRing progress={progress} />
+          <ProgressRing progress={progress || 0} />
           <div className="mt-4 text-center space-y-1">
             <p className="text-sm text-muted-foreground">
-              <span className="font-bold text-foreground">{versesToPages(plan.completedVerses, plan.startPage)}</span> من {plan.totalPages} صفحة
+              <span className="font-bold text-foreground">{completedPages}</span> من {totalPages} صفحة
             </p>
             <p className="text-xs text-muted-foreground">
-              متبقي: <span className="font-semibold text-accent">{plan.totalPages - versesToPages(plan.completedVerses, plan.startPage)} صفحة</span>
+              متبقي: <span className="font-semibold text-accent">{totalPages - completedPages} صفحة</span>
             </p>
-            <p className="text-xs text-muted-foreground">{formatQuranUnits(plan.completedVerses, plan.startPage)}</p>
+            <p className="text-xs text-muted-foreground">{formatQuranUnits(plan.completedVerses || 0, plan.startPage || 1)}</p>
           </div>
         </div>
 
-        {/* بطاقة اليوم */}
         {todayData && (
           <div className={`rounded-2xl border p-6 ${todayData.isOff ? 'bg-secondary/50 border-border/40' : 'bg-primary/5 border-primary/20'}`}>
             <h3 className="font-bold text-foreground mb-3 flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary" />
-              مهمة اليوم
+              <Target className="w-5 h-5 text-primary" /> مهمة اليوم
             </h3>
             {todayData.isOff ? (
               <div className="text-center py-4 space-y-3">
                 <p className="text-lg font-semibold text-muted-foreground">يوم إجازة</p>
                 <p className="text-sm text-muted-foreground">استمتع بيومك!</p>
-                <Button
-                  onClick={() => handleRecordDay(todayData)}
-                  variant="outline"
-                  className="rounded-xl"
-                  size="sm"
-                >
+                <Button onClick={() => handleRecordDay(todayData)} variant="outline" className="rounded-xl" size="sm">
                   تسجيل مراجعة استثنائية
                 </Button>
               </div>
             ) : (
               <>
                 <div className="text-center py-3 space-y-2">
-                  <p className="text-4xl font-bold text-primary">{formatQuranUnits(todayData.targetVerses, todayData.targetStartPage || plan.startPage)}</p>
+                  <p className="text-4xl font-bold text-primary">{formatQuranUnits(todayData.targetVerses || 0, todayData.targetStartPage || plan.startPage || 1)}</p>
                   <p className="text-sm text-muted-foreground">الورد المطلوب</p>
                   {todayData.targetStartPage && (
                     <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg py-1.5 px-3 inline-block">
                       من ص{todayData.targetStartPage} إلى ص{todayData.targetEndPage}
-                    </p>
-                  )}
-                  {todayData.targetQuarterName && (
-                    <p className="text-xs text-primary font-medium bg-primary/5 rounded-lg py-1.5 px-3 inline-block mt-1">
-                      {todayData.targetQuarterName}
                     </p>
                   )}
                 </div>
@@ -193,38 +192,21 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   className="w-full mt-4 rounded-xl h-11 font-semibold"
                   variant={alreadyRecorded ? "outline" : "default"}
                 >
-                  {alreadyRecorded ? `تعديل (${formatQuranUnits(todayData.completedVerses, todayData.targetStartPage || plan.startPage)})` : "تسجيل الإنجاز"}
+                  {alreadyRecorded ? `تعديل (${formatQuranUnits(todayData.completedVerses || 0, todayData.targetStartPage || plan.startPage || 1)})` : "تسجيل الإنجاز"}
                 </Button>
               </>
             )}
           </div>
         )}
 
-        {/* الإحصائيات */}
         <div className="space-y-3">
-          <StatCard
-            icon={TrendingUp}
-            label="المعدل اليومي"
-            value={`${stats?.avgDailyPages || 0} صفحات`}
-          />
-          <StatCard
-            icon={BookOpen}
-            label="المقدار اليومي الحالي"
-            value={`${plan.dailyPages} صفحات`}
-          />
-          <StatCard
-            icon={Layers}
-            label="الأيام المتبقية"
-            value={`${stats?.pendingDays || 0} يوم`}
-            subValue={`${stats?.completedDays || 0} منجز · ${stats?.partialDays || 0} جزئي · ${stats?.skippedDays || 0} متخطى`}
-          />
+          <StatCard icon={TrendingUp} label="المعدل اليومي" value={`${stats?.avgDailyPages || 0} صفحات`} />
+          <StatCard icon={BookOpen} label="المقدار اليومي الحالي" value={`${plan.dailyPages || 0} صفحات`} />
+          <StatCard icon={Layers} label="الأيام المتبقية" value={`${stats?.pendingDays || 0} يوم`} subValue={`${stats?.completedDays || 0} منجز · ${stats?.partialDays || 0} جزئي · ${stats?.skippedDays || 0} متخطى`} />
         </div>
       </div>
 
-      {/* الجدول */}
-      <ScheduleView schedule={plan.schedule} onRecordDay={handleRecordDay} />
-
-      {/* لوحة الإدخال المرن */}
+      <ScheduleView schedule={plan.schedule || []} onRecordDay={handleRecordDay} />
       <FlexibleEntryPanel
         open={dialogOpen}
         onOpenChange={setDialogOpen}

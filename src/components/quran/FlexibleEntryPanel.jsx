@@ -1,205 +1,148 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, BookOpen, RotateCcw, Layers } from "lucide-react";
-import { formatQuranUnits, smartQuranDisplay, flexibleInputToVerses, versesToPages } from "@/lib/quranPlanEngine";
+import { Check, BookOpen, RotateCcw, ChevronUp, ChevronDown, LayoutGrid, Target } from "lucide-react";
+import { formatQuranUnits, flexibleInputToVerses } from "@/lib/quranPlanEngine";
+import QuranInteractivePicker from "@/components/QuranInteractivePicker";
 
 export default function FlexibleEntryPanel({ open, onOpenChange, day, onSave, onUndo, alreadyRecorded }) {
   const [input, setInput] = useState({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0 });
-  const [mode, setMode] = useState(alreadyRecorded ? "view" : "enter");
+  const [useVisualMode, setUseVisualMode] = useState(false);
 
-  const calculatedVerses = flexibleInputToVerses(
-    input,
-    day?.targetStartPage || 1
-  );
+  const calculatedVerses = flexibleInputToVerses(input, day?.targetStartPage || 1);
+  const targetPages = day?.targetPages || 0;
+  const targetVerses = day?.targetVerses || 0;
+  const diff = day ? (calculatedVerses - targetVerses) : 0;
 
-  const diff = day ? Math.round((calculatedVerses - day.targetVerses) * 10) / 10 : 0;
-  const isExact = diff === 0;
+  useEffect(() => {
+    // يمكن إضافة أي تأثير جانبي هنا إذا لزم الأمر
+  }, [input.verses]);
+
+  // 🆕 دالة لتعبئة الحقول بالورد الموجه (أيام التثبيت)
+  const fillGuidedReview = () => {
+    if (day && day.targetVerses > 0) {
+      // نقوم بتحويل الورد إلى صفحات تقريبية (نظام مرن)
+      const pages = Math.ceil(day.targetVerses / 10); // تقريب
+      setInput({ juz: 0, hizb: 0, rub: 0, pages: pages, verses: 0 });
+    }
+  };
+
   const isLess = diff < 0 && calculatedVerses > 0;
   const isMore = diff > 0;
 
-  const resetInput = () => {
-    setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0 });
+  const getDiffDisplay = () => {
+    const absDiff = Math.max(0, Math.abs(diff));
+    if (absDiff < 15) return `${absDiff} آية`;
+    const totalInputPages = (input.juz || 0) * 20 + (input.hizb || 0) * 10 + (input.rub || 0) * 2.5 + (input.pages || 0);
+    const pageDiffAbs = Math.abs(totalInputPages - targetPages);
+    if (input.verses > 0) {
+      if (isLess) return `${Math.ceil(absDiff / 15)} صفحة تقريباً (أو ${absDiff} آية)`;
+      else if (isMore) return `${Math.floor(pageDiffAbs)} صفحة و ${input.verses} آية`;
+    }
+    return `${Math.round(absDiff / 15)} صفحة`;
   };
 
-  const handleSave = () => {
-    if (calculatedVerses === 0) return;
-    onSave(day.date, calculatedVerses, input);
-    onOpenChange(false);
-    resetInput();
-  };
-
-  const handleUndo = () => {
-    onUndo(day.date);
-    onOpenChange(false);
-    resetInput();
-  };
-
-  const handleQuickComplete = () => {
-    setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: day?.targetVerses || 0 });
-  };
-
-  const handleQuickHalf = () => {
-    const half = Math.ceil((day?.targetVerses || 0) / 2);
-    setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: half });
-  };
+  const resetInput = () => setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0 });
+  const handleSave = () => { if (calculatedVerses === 0) return; onSave(day.date, calculatedVerses, input); onOpenChange(false); resetInput(); };
+  const handleUndo = () => { onUndo(day.date); onOpenChange(false); resetInput(); };
+  
+  const handleQuickComplete = () => setInput({ juz: 0, hizb: 0, rub: 0, pages: day?.targetPages || 0, verses: 0 });
+  const handleQuickHalf = () => setInput({ juz: 0, hizb: 0, rub: 0, pages: Math.round((day?.targetPages || 0) / 2), verses: 0 });
+  const adjustValue = (key, amount) => setInput(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + amount) }));
 
   if (!day) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir="rtl" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl" dir="rtl" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className="text-center font-heading text-xl">
-            {alreadyRecorded ? "تعديل إنجاز اليوم" : "تسجيل إنجاز اليوم"}
-          </DialogTitle>
+          <DialogTitle className="text-center font-heading text-xl">{alreadyRecorded ? "تعديل إنجاز اليوم" : "تسجيل إنجاز اليوم"}</DialogTitle>
         </DialogHeader>
 
         <div className="py-3 space-y-5">
-          {/* بطاقة اليوم */}
           <div className="text-center bg-muted/50 rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">
-              {day.dayName} - {new Date(day.date).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long' })}
-            </p>
+            <p className="text-sm text-muted-foreground">{day.dayName} - {new Date(day.date).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long' })}</p>
             {day.isOff ? (
+              <p className="text-lg font-bold text-foreground mt-1">☕ يوم إجازة</p>
+            ) : day.isReviewDay ? (
               <p className="text-lg font-bold text-foreground mt-1">
-                يوم إجازة — <span className="text-muted-foreground">لا يوجد ورد محدد</span>
+                🔄 تثبيت: <span className="text-primary">{formatQuranUnits(targetVerses, day.targetStartPage || 1)}</span>
               </p>
             ) : (
-              <p className="text-lg font-bold text-foreground mt-1">
-                الورد المطلوب: <span className="text-primary">{formatQuranUnits(day.targetVerses, day.targetStartPage || 1)}</span>
-              </p>
-            )}
-            {!day.isOff && day.targetStartPage && (
-              <p className="text-xs text-muted-foreground mt-1">
-                من ص{day.targetStartPage} إلى ص{day.targetEndPage}
-              </p>
-            )}
-            {!day.isOff && day.targetQuarterName && (
-              <p className="text-xs text-primary font-medium mt-1 bg-primary/5 rounded-lg py-1 px-3 inline-block">
-                {day.targetQuarterName}
-              </p>
+              <p className="text-lg font-bold text-foreground mt-1">الورد: <span className="text-primary">{formatQuranUnits(targetVerses, day.targetStartPage || 1)}</span></p>
             )}
           </div>
 
-          {/* لوحة الإدخال المرن */}
+          {/* 🆕 زر التعبئة التلقائية لأيام التثبيت */}
+          {day.isReviewDay && day.targetVerses > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fillGuidedReview} 
+              className="w-full rounded-xl border-primary/30 text-primary hover:bg-primary/5"
+            >
+              <Target className="w-4 h-4 ml-2" /> تعبئة بالورد الموجه (آخر أسبوع)
+            </Button>
+          )}
+
           <div>
-            <Label className="text-sm font-semibold text-foreground mb-3 block text-center">
-              ماذا راجعت اليوم؟
-            </Label>
-            <div className="grid grid-cols-5 gap-2 mb-3">
-              {[
-                { key: "juz", label: "أجزاء", icon: "J" },
-                { key: "hizb", label: "أحزاب", icon: "H" },
-                { key: "rub", label: "أرباع", icon: "R" },
-                { key: "pages", label: "صفحات", icon: "ص" },
-                { key: "verses", label: "آيات", icon: "آ" },
-              ].map((unit) => (
-                <div key={unit.key} className="text-center">
-                  <Label className="text-[11px] text-muted-foreground mb-1 block">{unit.label}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={input[unit.key]}
-                    onChange={(e) => setInput(prev => ({
-                      ...prev,
-                      [unit.key]: Math.max(0, parseInt(e.target.value) || 0)
-                    }))}
-                    className="text-center text-sm font-semibold h-10 px-1"
-                    dir="ltr"
-                    autoFocus={false}
-                    onFocus={(e) => e.target.select()}
-                  />
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-sm font-semibold text-foreground">ماذا راجعت اليوم؟</Label>
+              <button onClick={() => setUseVisualMode(!useVisualMode)} className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-primary/20 transition-colors">
+                {useVisualMode ? <><Check className="w-3 h-3"/> إدخال رقمي</> : <><LayoutGrid className="w-3 h-3"/> واجهة المصحف</>}
+              </button>
             </div>
 
-            {/* النتيجة المحسوبة */}
-            <div className="bg-card border border-border/60 rounded-xl p-4 text-center space-y-1">
+            {useVisualMode ? (
+              <QuranInteractivePicker 
+                targetStartPage={day?.targetStartPage} 
+                targetEndPage={day?.targetEndPage}
+                onSelectionChange={(data) => {
+                  if (data.versesCount > 0) {
+                    setInput(prev => ({ ...prev, juz: 0, hizb: 0, rub: 0, pages: 0, verses: data.versesCount }));
+                  } else {
+                    setInput(prev => ({ ...prev, verses: 0 }));
+                  }
+                }}
+              />
+            ) : (
+              <div className="grid grid-cols-5 gap-2 mb-3">
+                {[{ key: "juz", label: "أجزاء" }, { key: "hizb", label: "أحزاب" }, { key: "rub", label: "أرباع" }, { key: "pages", label: "صفحات" }, { key: "verses", label: "آيات" }].map((unit) => (
+                  <div key={unit.key} className="text-center space-y-1">
+                    <Label className="text-[11px] text-muted-foreground block">{unit.label}</Label>
+                    <div className="relative flex flex-col items-center bg-background border border-border/60 rounded-2xl p-1">
+                      <button type="button" onClick={() => adjustValue(unit.key, 1)} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronUp className="w-3.5 h-3.5" /></button>
+                      <Input type="text" inputMode="numeric" value={input[unit.key] || 0} onChange={(e) => { const val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0; setInput(prev => ({ ...prev, [unit.key]: val })); }} className="h-7 w-full border-0 bg-transparent p-0 text-center text-sm font-semibold focus-visible:ring-0" dir="ltr" />
+                      <button type="button" onClick={() => adjustValue(unit.key, -1)} className="text-muted-foreground hover:text-foreground p-0.5"><ChevronDown className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-card border border-border/60 rounded-xl p-4 text-center mt-3">
               <p className="text-sm text-muted-foreground">الإجمالي المحسوب</p>
               <p className="text-3xl font-bold text-primary">{formatQuranUnits(calculatedVerses, day?.targetStartPage || 1)}</p>
             </div>
 
-            {/* رسائل التأثير */}
-            {isExact && calculatedVerses > 0 && (
-              <div className="text-center text-sm text-emerald-600 font-medium bg-emerald-50 border border-emerald-200 rounded-lg py-3 px-4 mt-3">
-                <Check className="w-4 h-4 inline ml-1" />
-                أحسنت! أكملت الورد كاملاً — لا تغيير على الأيام القادمة
-              </div>
-            )}
-            {isLess && (
-            <div className="text-center text-sm text-accent font-medium bg-accent/5 border border-accent/20 rounded-lg py-3 px-4 mt-3">
-              <BookOpen className="w-4 h-4 inline ml-1" />
-              تبقى {Math.abs(Math.round(diff))} آية — سيتم توزيعها على الأيام القادمة (مع ثبات تاريخ النهاية)
-            </div>
-            )}
-            {isMore && (
-            <div className="text-center text-sm text-emerald-600 font-medium bg-emerald-50 border border-emerald-200 rounded-lg py-3 px-4 mt-3">
-              ماشاء الله! أنجزت {Math.round(diff)} آية زيادة — سيتم تخفيف المقدار اليومي للأيام القادمة تلقائياً
-            </div>
-            )}
-            {calculatedVerses === 0 && (
-              <div className="text-center text-sm text-destructive font-medium bg-destructive/5 border border-destructive/20 rounded-lg py-3 px-4 mt-3">
-                لم تُدخل أي مقدار بعد
+            {(isLess || isMore) && (
+              <div className={`text-center text-sm font-medium rounded-xl py-3 px-4 mt-3 ${isLess ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"}`}>
+                {isLess ? <><BookOpen className="w-4 h-4 inline ml-1" /> تبقى {getDiffDisplay()}</> : <><Check className="w-4 h-4 inline ml-1" /> أنجزت {getDiffDisplay()} زيادة</>}
               </div>
             )}
           </div>
-
-          {/* أزرار سريعة */}
-          <div className="flex gap-2 justify-center flex-wrap">
-            <button
-              onClick={handleQuickComplete}
-              className="px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
-            >
-              <Check className="w-3.5 h-3.5 inline ml-1" />
-              أكملت الورد كاملاً
-            </button>
-            <button
-              onClick={handleQuickHalf}
-              className="px-4 py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
-            >
-              راجعت النصف
-            </button>
-            <button
-              onClick={resetInput}
-              className="px-4 py-2 rounded-lg bg-muted text-muted-foreground text-sm font-medium hover:bg-muted/80 transition-colors"
-            >
-              <RotateCcw className="w-3.5 h-3.5 inline ml-1" />
-              تصفير
-            </button>
-          </div>
-
-          {/* زر التراجع */}
-          {alreadyRecorded && (
-            <div className="text-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleUndo}
-                className="text-destructive border-destructive/20 hover:bg-destructive/5"
-              >
-                <RotateCcw className="w-4 h-4 ml-1" />
-                تراجع عن تسجيل اليوم
-              </Button>
-            </div>
-          )}
         </div>
 
-        <DialogFooter className="flex gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 rounded-xl">
-            إلغاء
-          </Button>
-          <Button
-            onClick={handleSave}
-            className="flex-1 rounded-xl bg-primary hover:bg-primary/90"
-            disabled={calculatedVerses === 0}
-          >
-            <Check className="w-4 h-4 ml-2" />
-            حفظ
-          </Button>
+        <DialogFooter className="flex gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 rounded-2xl">إلغاء</Button>
+          {alreadyRecorded && (
+            <Button onClick={handleUndo} className="flex-1 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/20">
+              <RotateCcw className="w-4 h-4 ml-2" /> تراجع
+            </Button>
+          )}
+          <Button onClick={handleSave} className="flex-1 rounded-2xl bg-emerald-600" disabled={calculatedVerses === 0}><Check className="w-4 h-4 ml-2" /> حفظ</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

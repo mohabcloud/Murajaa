@@ -1,14 +1,18 @@
-import { createClient } from '@base44/sdk';
-import { appParams } from '@/lib/app-params';
+// تعطيل عميل Base44 تماماً - استخدام كائن وهمي (Mock) لتجنب أي اتصال بالخادم
 
-const { appId, token, functionsVersion, appBaseUrl } = appParams;
-
-//Create a client with authentication required
-export const base44 = createClient({
-  appId,
-  token,
-  functionsVersion,
-  serverUrl: '',
-  requiresAuth: false,
-  appBaseUrl
-});
+// إنشاء كائن وهمي يحتوي على نفس دوال SDK ولكنها لا تفعل شيئاً
+export const base44 = {
+  auth: {
+    me: async () => ({ id: 'local_user', name: 'Local User' }),
+    loginViaEmailPassword: async () => {},
+    loginWithProvider: async () => {},
+    logout: () => {},
+    redirectToLogin: () => {},
+    register: async () => {},
+    verifyOtp: async () => ({}),
+    resetPasswordRequest: async () => {},
+    resetPassword: async () => {},
+    resendOtp: async () => {},
+    setToken: () => {},
+  },
+};

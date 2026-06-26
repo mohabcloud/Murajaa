@@ -90,3 +90,31 @@
         @apply bg-background text-foreground font-body;
     }
 }
+
+/* ======================================================== */
+/* تعديل مخصص للتحكم في شكل أزرار الـ Spin لـ حقول الأرقام */
+/* ======================================================== */
+
+/* WebKit (Chrome, Safari, Edge) - جعل الأزرار شفافة */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  background-color: transparent !important;
+  background-image: none !important;
+  cursor: pointer;
+}
+
+/* في الوضع المظلم، عكس الألوان لجعل الأزرار مناسبة */
+.dark input[type="number"]::-webkit-inner-spin-button,
+.dark input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(1);
+}
+
+/* إخفاء أزرار spin في فايرفوكس (لأنها لا تدعم التخصيص بسهولة) */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* تحسين إضافي: جعل التصميم العام يتناسب مع الوضع المظلم في المتصفحات التي تدعم color-scheme */
+.dark input[type="number"] {
+  color-scheme: dark;
+}

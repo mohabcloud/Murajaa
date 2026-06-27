@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Calendar, Hash, Coffee, Sparkles, Layers, Type, Info, ChevronDown, Search, Pencil } from "lucide-react";
-import { createPlan, formatQuranUnits, smartQuranDisplay, DAY_NAMES_AR, getLocalToday } from "@/lib/quranPlanEngine";
+// ✅ استيراد createPlan و mergePlanWithProgress
+import { createPlan, mergePlanWithProgress, formatQuranUnits, smartQuranDisplay, DAY_NAMES_AR, getLocalToday } from "@/lib/quranPlanEngine";
 import { getVersesBetween, getQuranData } from "@/lib/quranData";
 import QuranDetailsPopover from "@/components/quran/QuranDetailsPopover";
 import {
@@ -342,6 +343,7 @@ export default function CreatePlanForm({
     }));
   };
 
+  // ✅ دالة المعاينة المعدلة
   const handlePreview = () => {
     setError("");
     const { start, end } = calculatePages();
@@ -377,7 +379,8 @@ export default function CreatePlanForm({
 
     const vacationPattern = vacationEnabled ? { enabled: true, daysOn, daysOff } : null;
 
-    const plan = createPlan({
+    // إنشاء الخطة الجديدة
+    const newPlan = createPlan({
       name,
       startDate,
       endDate,
@@ -387,18 +390,23 @@ export default function CreatePlanForm({
       vacationPattern,
     });
 
-    if (plan.error) {
-      setError(plan.error);
+    if (newPlan.error) {
+      setError(newPlan.error);
       setHasPreview(false);
       return;
     }
 
-    // إذا كان تعديلاً، نحتفظ بالـ id القديم
+    // ✅ إذا كان تعديلاً، ندمج مع الخطة القديمة للحفاظ على التقدم
+    let finalPlan = newPlan;
     if (isEditing && initialPlan) {
-      plan.id = initialPlan.id;
+      finalPlan = mergePlanWithProgress(initialPlan, newPlan);
+      // الحفاظ على الـ id القديم
+      finalPlan.id = initialPlan.id;
+    } else {
+      finalPlan.id = 'plan_' + Date.now();
     }
 
-    setPreview(plan);
+    setPreview(finalPlan);
     setHasPreview(true);
   };
 

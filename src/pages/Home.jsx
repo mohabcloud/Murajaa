@@ -3,16 +3,10 @@ import { loadAllPlans, saveAllPlans, savePlan, deletePlan, loadActivePlan, setAc
 import { initQuranData } from "@/lib/quranData";
 import CreatePlanForm from "@/components/quran/CreatePlanForm";
 import Dashboard from "@/components/quran/Dashboard";
-import { BookOpen, Moon, Sun, AlertCircle, Pencil } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { BookOpen, Moon, Sun, AlertCircle, Download, Upload } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
   const [allPlans, setAllPlans] = useState([]);
@@ -22,8 +16,8 @@ export default function Home() {
   const [isDark, setIsDark] = useState(false);
   const [quranReady, setQuranReady] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingPlan, setEditingPlan] = useState(null); // ✅ للتعديل
-  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false); // ✅ للتحكم في الـ Sheet
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -77,7 +71,6 @@ export default function Home() {
     setAllPlans(prev => [...prev, newPlan]);
     setActivePlan(newPlan);
     setShowCreateForm(false);
-    // ✅ إظهار رسالة نجاح
     toast({
       title: "تم إنشاء الخطة بنجاح",
       description: `الخطة "${newPlan.name}" جاهزة للبدء.`,
@@ -89,7 +82,6 @@ export default function Home() {
     savePlan(updatedPlan);
     setAllPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
     setActivePlan(updatedPlan);
-    // ✅ إظهار رسالة نجاح
     toast({
       title: "تم تحديث الخطة",
       description: `تم حفظ التغييرات في "${updatedPlan.name}".`,
@@ -134,7 +126,76 @@ export default function Home() {
     setEditingPlan(null);
   };
 
-  // ✅ شاشة الخطأ مع زر إعادة المحاولة
+  // ==================== التصدير والاستيراد ====================
+  const handleExport = () => {
+    const plans = loadAllPlans();
+    if (plans.length === 0) {
+      toast({
+        title: "لا توجد خطط",
+        description: "ليس لديك أي خطط لحفظها كنسخة احتياطية.",
+      });
+      return;
+    }
+    const dataStr = JSON.stringify(plans, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `quran_review_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({
+      title: "تم التصدير بنجاح",
+      description: `تم تصدير ${plans.length} خطة كملف JSON.`,
+    });
+  };
+
+  const handleImport = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedPlans = JSON.parse(e.target.result);
+        if (!Array.isArray(importedPlans) || importedPlans.length === 0) {
+          toast({
+            title: "ملف غير صالح",
+            description: "الملف لا يحتوي على خطط صالحة.",
+            variant: "destructive",
+          });
+          return;
+        }
+        // استبدال جميع الخطط الحالية
+        if (window.confirm(`سيتم استبدال جميع الخطط الحالية (عددها ${allPlans.length}) بالخطط المستوردة (عددها ${importedPlans.length}). هل أنت متأكد؟`)) {
+          saveAllPlans(importedPlans);
+          // إعادة تحميل الحالة
+          const reloadedPlans = loadAllPlans();
+          setAllPlans(reloadedPlans);
+          const active = loadActivePlan();
+          setActivePlan(active);
+          setShowCreateForm(reloadedPlans.length === 0);
+          // ✅ عرض رسالة نجاح واحدة فقط
+          toast({
+            title: "تم الاستيراد بنجاح",
+            description: `تم استيراد ${importedPlans.length} خطة.`,
+          });
+        }
+      } catch (err) {
+        toast({
+          title: "خطأ في الاستيراد",
+          description: "الملف غير صالح أو تالف.",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+    // إعادة تعيين قيمة الإدخال
+    event.target.value = null;
+  };
+
+  // شاشة الخطأ
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4" dir="rtl">
@@ -182,17 +243,31 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* ✅ زر التعديل يظهر بجانب الـ Dropdown إذا كانت هناك خطة نشطة */}
-            {activePlan && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => handleEditPlan(activePlan)}
+            {/* ✅ أزرار التصدير والاستيراد */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExport}
                 className="h-9 w-9 p-0 rounded-xl"
+                title="تصدير الخطط كنسخة احتياطية"
               >
-                <Pencil className="w-4 h-4" />
+                <Download className="w-4 h-4" />
               </Button>
-            )}
+              <label className="h-9 w-9 p-0 rounded-xl flex items-center justify-center hover:bg-muted/80 cursor-pointer transition-colors">
+                <Upload className="w-4 h-4" />
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImport}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* ❌ تم إزالة زر التعديل من هنا */}
+
+            {/* زر الوضع المظلم */}
             <button onClick={toggleDarkMode} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
               {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
             </button>
@@ -215,7 +290,7 @@ export default function Home() {
             onDeletePlan={handleDeletePlan} 
             onSwitchPlan={handleSwitchPlan} 
             onNewPlan={handleNewPlan}
-            onEditPlan={handleEditPlan} // ✅ تمرير دالة التعديل إلى Dashboard
+            onEditPlan={handleEditPlan}
           />
         ) : null}
       </main>
@@ -226,7 +301,7 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* ✅ Sheet للتعديل */}
+      {/* Sheet للتعديل */}
       <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
         <SheetContent side="bottom" className="h-[95vh] overflow-y-auto rounded-t-3xl p-0">
           <div className="p-6">

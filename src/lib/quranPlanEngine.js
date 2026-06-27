@@ -376,5 +376,52 @@ export function undoDayProgress(plan, dateStr) {
   return updatedPlan;
 }
 
+// ==================== دمج التقدم عند التعديل ====================
+
+/**
+ * دمج خطة جديدة مع تقدم خطة قديمة
+ * @param {Object} oldPlan - الخطة القديمة (التي تحتوي على التقدم)
+ * @param {Object} newPlanData - الخطة الجديدة (التي تم إنشاؤها بواسطة createPlan)
+ * @returns {Object} الخطة المدمجة مع الاحتفاظ بالتقدم للأيام المتطابقة
+ */
+export function mergePlanWithProgress(oldPlan, newPlanData) {
+  // 1. إنشاء خريطة للأيام القديمة (مفتاح = التاريخ)
+  const oldScheduleMap = {};
+  if (oldPlan && oldPlan.schedule) {
+    oldPlan.schedule.forEach(day => {
+      oldScheduleMap[day.date] = day;
+    });
+  }
+
+  // 2. دمج الجدول الجديد مع التقدم القديم
+  const mergedSchedule = newPlanData.schedule.map(newDay => {
+    const oldDay = oldScheduleMap[newDay.date];
+    if (oldDay) {
+      // إذا كان اليوم موجوداً في الخطة القديمة، نحتفظ بالتقدم والحالة
+      return {
+        ...newDay,
+        status: oldDay.status || 'pending',
+        completedVerses: oldDay.completedVerses || 0,
+      };
+    }
+    // إذا كان اليوم جديداً (لم يكن موجوداً في الخطة القديمة)
+    return {
+      ...newDay,
+      status: 'pending',
+      completedVerses: 0,
+    };
+  });
+
+  // 3. حساب إجمالي الآيات المنجزة من الجدول المدمج
+  const totalCompletedVerses = mergedSchedule.reduce((sum, day) => sum + (day.completedVerses || 0), 0);
+
+  // 4. إرجاع الخطة المدمجة مع الاحتفاظ بالخصائص الجديدة
+  return {
+    ...newPlanData,
+    schedule: mergedSchedule,
+    completedVerses: totalCompletedVerses,
+  };
+}
+
 // تصدير دوال التنسيق من utils
 export { formatQuranUnits, smartQuranDisplay };

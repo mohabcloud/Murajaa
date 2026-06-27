@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_REMOVE_DELAY = 5000; // 5 ثوانٍ
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -36,14 +36,6 @@ const addToRemoveQueue = (toastId) => {
   toastTimeouts.set(toastId, timeout);
 };
 
-const _clearFromRemoveQueue = (toastId) => {
-  const timeout = toastTimeouts.get(toastId);
-  if (timeout) {
-    clearTimeout(timeout);
-    toastTimeouts.delete(toastId);
-  }
-};
-
 export const reducer = (state, action) => {
   switch (action.type) {
     case actionTypes.ADD_TOAST:
@@ -63,8 +55,6 @@ export const reducer = (state, action) => {
     case actionTypes.DISMISS_TOAST: {
       const { toastId } = action;
 
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
       if (toastId) {
         addToRemoveQueue(toastId);
       } else {
@@ -96,11 +86,12 @@ export const reducer = (state, action) => {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
       };
+    default:
+      return state;
   }
 };
 
 const listeners = [];
-
 let memoryState = { toasts: [] };
 
 function dispatch(action) {
@@ -119,8 +110,9 @@ function toast({ ...props }) {
       toast: { ...props, id },
     });
 
-  const dismiss = () =>
+  const dismiss = () => {
     dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id });
+  };
 
   dispatch({
     type: actionTypes.ADD_TOAST,
@@ -134,9 +126,21 @@ function toast({ ...props }) {
     },
   });
 
+  // إغلاق تلقائي بعد المدة المحددة
+  const timeoutId = setTimeout(() => {
+    dismiss();
+  }, TOAST_REMOVE_DELAY);
+
+  // تنظيف المؤقت إذا تم إلغاء الرسالة يدوياً
+  const originalDismiss = dismiss;
+  const enhancedDismiss = () => {
+    clearTimeout(timeoutId);
+    originalDismiss();
+  };
+
   return {
     id,
-    dismiss,
+    dismiss: enhancedDismiss,
     update,
   };
 }
@@ -152,7 +156,7 @@ function useToast() {
         listeners.splice(index, 1);
       }
     };
-  }, [state]);
+  }, []);
 
   return {
     ...state,
@@ -161,4 +165,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast }; 
+export { useToast, toast };

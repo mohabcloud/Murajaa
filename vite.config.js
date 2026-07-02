@@ -17,6 +17,8 @@ export default defineConfig({
       includeAssets: ['manifest.json', 'logo_v2.svg'],
       manifest: false, // نستخدم manifest.json الموجود في الجذر
       workbox: {
+        // ✅ رفع الحد الأقصى لحجم الملفات التي يتم تخزينها مؤقتاً
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 ميجابايت
         globPatterns: ['**/*.{js,css,html,json,svg,ico,png,webp}'],
         runtimeCaching: [
           {
@@ -56,7 +58,7 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true, // تفعيل PWA في وضع التطوير لتسهيل الاختبار
+        enabled: false, // ✅ يُفضل تعطيله في وضع التطوير لتجنب التداخل أثناء التطوير
         type: 'module',
       },
     }),

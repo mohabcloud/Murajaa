@@ -12,8 +12,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# dist   <-- تم حذف هذا السطر
+# dist-ssr  <-- تم حذف هذا السطر
 *.local
 
 # Editor directories and files

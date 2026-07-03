@@ -20,7 +20,7 @@ function App() {
           richColors
           duration={4000}
           dir="rtl"
-          closeButton={false} // ✅ تعطيل الزر المدمج
+          closeButton={false}
           toastOptions={{
             className: "murajaa-toast",
             style: {

@@ -7,11 +7,12 @@ import { BookOpen, Moon, Sun, AlertCircle, Download, Upload } from "lucide-react
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { initGoogleDrive, signInToDrive, signOutFromDrive, syncFromDrive, uploadToDrive, checkSignedIn } from "@/lib/googleDrive";
 
-// ✅ دالة لعرض توست مع زر إغلاق - الزاوية اليسرى العلوية (بدون translate-x)
+// ===== دالة عرض Toast مخصصة =====
 const showCustomToast = (type, title, description) => {
   const dismiss = () => toast.dismiss();
-  
+
   const content = (
     <div className="relative w-full pe-8">
       <button
@@ -25,7 +26,6 @@ const showCustomToast = (type, title, description) => {
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-      
       <div className="ps-6">
         <p className="font-semibold text-foreground">{title}</p>
         {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
@@ -39,11 +39,14 @@ const showCustomToast = (type, title, description) => {
     toast.error(content, { duration: 4000, className: "murajaa-toast" });
   } else if (type === 'info') {
     toast.info(content, { duration: 4000, className: "murajaa-toast" });
+  } else if (type === 'warning') {
+    toast.warning(content, { duration: 4000, className: "murajaa-toast" });
   } else {
     toast(content, { duration: 4000, className: "murajaa-toast" });
   }
 };
 
+// ===== مكون Home الرئيسي =====
 export default function Home() {
   const [allPlans, setAllPlans] = useState([]);
   const [activePlan, setActivePlan] = useState(null);
@@ -54,7 +57,116 @@ export default function Home() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
+  // ===== إعادة تحميل الخطط (مع معالجة الأخطاء) =====
+  const reloadPlans = () => {
+    try {
+      let plans = loadAllPlans();
+      plans = plans.map(p => {
+        if (!p.schedule) {
+          return { ...p, schedule: [], completedVerses: 0, totalPages: p.totalPages || 1, totalVerses: p.totalVerses || 0 };
+        }
+        return p;
+      });
+      setAllPlans(plans);
+
+      const active = loadActivePlan();
+      if (active && !active.schedule) {
+        active.schedule = [];
+      }
+      setActivePlan(active);
+      setShowCreateForm(plans.length === 0);
+    } catch (err) {
+      console.error('❌ Error reloading plans:', err);
+    }
+  };
+
+  // ===== المزامنة اليدوية مع Drive =====
+  const handleManualSync = async () => {
+    if (!driveConnected) {
+      showCustomToast('warning', 'غير متصل بـ Drive', 'يرجى ربط حساب Google أولاً.');
+      return;
+    }
+    setSyncing(true);
+    try {
+      const plans = await syncFromDrive();
+      if (plans) {
+        reloadPlans();
+        showCustomToast('success', 'تمت المزامنة', 'تم تحديث البيانات من Drive.');
+      } else {
+        await uploadToDrive();
+        showCustomToast('success', 'تمت المزامنة', 'تم رفع بياناتك المحلية إلى السحابة.');
+      }
+    } catch (error) {
+      showCustomToast('error', 'فشلت المزامنة', error.message || 'حدث خطأ');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // ===== تهيئة Google Drive =====
+  useEffect(() => {
+    const initDrive = async () => {
+      try {
+        await initGoogleDrive();
+        const signedIn = checkSignedIn();
+        setDriveConnected(signedIn);
+        if (signedIn) {
+          try {
+            await syncFromDrive();
+            reloadPlans(); // ✅ تحديث الواجهة بعد المزامنة التلقائية
+          } catch (syncError) {
+            console.warn('⚠️ Auto-sync failed:', syncError);
+            reloadPlans(); // نستمر محلياً
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Drive init failed:', error);
+      }
+    };
+    initDrive();
+  }, []);
+
+  // ===== دوال ربط وفصل Drive =====
+  const handleConnectDrive = async () => {
+    setDriveLoading(true);
+    try {
+      await signInToDrive();
+      setDriveConnected(true);
+
+      // محاولة المزامنة
+      try {
+        const plans = await syncFromDrive();
+        if (plans) {
+          reloadPlans();
+          showCustomToast('success', 'تم الربط والمزامنة', 'تم تحميل أحدث البيانات من Drive.');
+        } else {
+          await uploadToDrive();
+          reloadPlans(); // تحديث الواجهة بعد الرفع
+          showCustomToast('success', 'تم الربط', 'تم رفع بياناتك المحلية إلى السحابة.');
+        }
+      } catch (syncError) {
+        console.error('⚠️ Sync error:', syncError);
+        reloadPlans(); // حتى لو فشلت المزامنة، نستمر بالعمل محلياً
+        showCustomToast('warning', 'تم الربط لكن فشلت المزامنة', 'يمكنك المحاولة يدوياً باستخدام زر المزامنة.');
+      }
+    } catch (error) {
+      showCustomToast('error', 'فشل ربط Google Drive', error.message || 'حدث خطأ');
+    } finally {
+      setDriveLoading(false);
+    }
+  };
+
+  const handleDisconnectDrive = () => {
+    signOutFromDrive();
+    setDriveConnected(false);
+    showCustomToast('info', 'تم فصل Google Drive', 'ستستمر البيانات محلياً');
+  };
+
+  // ===== دوال التطبيق الأساسية =====
   useEffect(() => {
     async function init() {
       try {
@@ -101,6 +213,7 @@ export default function Home() {
     document.documentElement.classList.toggle("dark", newVal);
   };
 
+  // ===== دوال إدارة الخطط =====
   const handlePlanCreated = (newPlan) => {
     if (!newPlan.schedule) newPlan.schedule = [];
     savePlan(newPlan);
@@ -156,6 +269,7 @@ export default function Home() {
     setEditingPlan(null);
   };
 
+  // ===== دوال التصدير والاستيراد =====
   const handleExport = () => {
     const plans = loadAllPlans();
     if (plans.length === 0) {
@@ -203,6 +317,7 @@ export default function Home() {
     event.target.value = null;
   };
 
+  // ===== حالات التحميل والخطأ =====
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4" dir="rtl">
@@ -213,8 +328,8 @@ export default function Home() {
           <p className="text-muted-foreground text-xs mb-4">
             تأكد من اتصالك بالإنترنت، أو حاول إعادة تحميل الصفحة.
           </p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="px-6 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors"
           >
             إعادة تحميل
@@ -234,6 +349,7 @@ export default function Home() {
     );
   }
 
+  // ===== الواجهة الرئيسية =====
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
@@ -270,6 +386,43 @@ export default function Home() {
                 />
               </label>
             </div>
+
+            {/* زر المزامنة مع Drive */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleManualSync}
+              disabled={!driveConnected || syncing}
+              className="h-9 w-9 p-0 rounded-xl"
+              title={!driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}
+            >
+              {syncing ? (
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" />
+                </svg>
+              )}
+            </Button>
+
+            {/* زر Google Drive */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
+              disabled={driveLoading}
+              className="h-9 w-9 p-0 rounded-xl"
+              title={driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}
+            >
+              {driveLoading ? (
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={driveConnected ? '#34A853' : 'currentColor'}>
+                  <path d="M12.01 2.39L8.46 8.14l3.55 5.75 3.55-5.75-3.55-5.75zM4.46 8.14L.91 13.89l3.55 5.75 3.55-5.75-3.55-5.75zm15.08 0l-3.55 5.75 3.55 5.75 3.55-5.75-3.55-5.75zM12.01 15.64l-3.55 5.75 3.55 5.75 3.55-5.75-3.55-5.75z" />
+                </svg>
+              )}
+            </Button>
+
             <button onClick={toggleDarkMode} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
               {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
             </button>
@@ -279,22 +432,27 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         {showCreateForm ? (
-          <CreatePlanForm 
-            onPlanCreated={handlePlanCreated} 
-            onCancel={handleCancelCreate} 
-            existingPlans={allPlans} 
+          <CreatePlanForm
+            onPlanCreated={handlePlanCreated}
+            onCancel={handleCancelCreate}
+            existingPlans={allPlans}
           />
         ) : activePlan ? (
-          <Dashboard 
-            plan={activePlan} 
-            allPlans={allPlans} 
-            onPlanUpdate={handlePlanUpdate} 
-            onDeletePlan={handleDeletePlan} 
-            onSwitchPlan={handleSwitchPlan} 
+          <Dashboard
+            plan={activePlan}
+            allPlans={allPlans}
+            onPlanUpdate={handlePlanUpdate}
+            onDeletePlan={handleDeletePlan}
+            onSwitchPlan={handleSwitchPlan}
             onNewPlan={handleNewPlan}
             onEditPlan={handleEditPlan}
           />
-        ) : null}
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">لا توجد خطط حالياً. يمكنك إنشاء خطة جديدة.</p>
+            <Button onClick={handleNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
+          </div>
+        )}
       </main>
 
       <footer className="border-t border-border/40 mt-12">

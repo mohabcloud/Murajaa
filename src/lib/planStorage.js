@@ -1,11 +1,11 @@
-/**
- * تخزين متعدد الخطط محلياً في localStorage
- */
+// src/lib/planStorage.js
+
+import { savePlansToDrive, loadPlansFromDrive, checkSignedIn } from './googleDrive';
 
 const PLANS_KEY = "quran_review_plans_v2";
 const ACTIVE_KEY = "quran_active_plan_id";
 
-/** تحميل جميع الخطط */
+/** تحميل جميع الخطط من localStorage */
 export function loadAllPlans() {
   const raw = localStorage.getItem(PLANS_KEY);
   if (!raw) return [];
@@ -16,9 +16,18 @@ export function loadAllPlans() {
   }
 }
 
-/** حفظ جميع الخطط */
+/** حفظ جميع الخطط في localStorage + رفع إلى Drive إذا كان متصلاً */
 export function saveAllPlans(plans) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+  
+  // محاولة الرفع إلى Drive في الخلفية
+  if (checkSignedIn()) {
+    savePlansToDrive(plans).catch(err => {
+      console.warn('⚠️ Could not save to Drive:', err);
+    });
+  }
+  
+  return plans;
 }
 
 /** تحميل خطة واحدة */
@@ -38,6 +47,7 @@ export function savePlan(plan) {
   }
   saveAllPlans(plans);
   setActivePlanId(plan.id);
+  return plan;
 }
 
 /** حذف خطة */
@@ -75,4 +85,26 @@ export function loadActivePlan() {
     return null;
   }
   return loadPlan(id);
+}
+
+// ========== دوال Drive ==========
+
+/** تحميل الخطط من Drive وتحديث localStorage */
+export async function loadAllPlansFromDrive() {
+  if (checkSignedIn()) {
+    const drivePlans = await loadPlansFromDrive();
+    if (drivePlans) {
+      localStorage.setItem(PLANS_KEY, JSON.stringify(drivePlans));
+      return drivePlans;
+    }
+  }
+  return loadAllPlans();
+}
+
+/** رفع جميع الخطط إلى Drive */
+export async function saveAllPlansToDrive(plans) {
+  if (checkSignedIn()) {
+    return await savePlansToDrive(plans);
+  }
+  return false;
 }

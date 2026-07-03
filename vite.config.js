@@ -4,6 +4,7 @@ import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/', // ✅ مهم لـ Netlify
   logLevel: 'error',
   resolve: {
     alias: {
@@ -15,10 +16,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['manifest.json', 'logo_v2.svg'],
-      manifest: false, // نستخدم manifest.json الموجود في الجذر
+      manifest: false,
       workbox: {
-        // ✅ رفع الحد الأقصى لحجم الملفات التي يتم تخزينها مؤقتاً
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 ميجابايت
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,json,svg,ico,png,webp}'],
         runtimeCaching: [
           {
@@ -28,7 +28,7 @@ export default defineConfig({
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // سنة
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },
           },
@@ -39,28 +39,39 @@ export default defineConfig({
               cacheName: 'image-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // شهر
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
           },
           {
-            // تخزين بيانات المصحف (quran_complete_data.json)
             urlPattern: /quran_complete_data\.json$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'quran-data-cache',
               expiration: {
                 maxEntries: 1,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // سنة
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },
           },
         ],
       },
       devOptions: {
-        enabled: false, // ✅ يُفضل تعطيله في وضع التطوير لتجنب التداخل أثناء التطوير
+        enabled: false,
         type: 'module',
       },
     }),
   ],
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 });

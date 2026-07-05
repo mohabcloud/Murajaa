@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { loadAllPlans, saveAllPlans, savePlan, deletePlan, loadActivePlan, setActivePlanId } from "@/lib/planStorage";
 import { initQuranData } from "@/lib/quranData";
 import CreatePlanForm from "@/components/quran/CreatePlanForm";
 import Dashboard from "@/components/quran/Dashboard";
-import { BookOpen, Moon, Sun, AlertCircle, Download, Upload } from "lucide-react";
+import { BookOpen, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { initGoogleDrive, signInToDrive, signOutFromDrive, syncFromDrive, uploadToDrive, checkSignedIn } from "@/lib/googleDrive";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ===== دالة عرض Toast مخصصة =====
 const showCustomToast = (type, title, description) => {
@@ -60,6 +61,9 @@ export default function Home() {
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveLoading, setDriveLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // ===== مرجع لتوقيت المهلة الاحتياطي =====
+  const driveTimeoutRef = useRef(null);
 
   // ===== إعادة تحميل الخطط (مع معالجة الأخطاء) =====
   const reloadPlans = () => {
@@ -117,10 +121,10 @@ export default function Home() {
         if (signedIn) {
           try {
             await syncFromDrive();
-            reloadPlans(); // ✅ تحديث الواجهة بعد المزامنة التلقائية
+            reloadPlans();
           } catch (syncError) {
             console.warn('⚠️ Auto-sync failed:', syncError);
-            reloadPlans(); // نستمر محلياً
+            reloadPlans();
           }
         }
       } catch (error) {
@@ -130,35 +134,58 @@ export default function Home() {
     initDrive();
   }, []);
 
-  // ===== دوال ربط وفصل Drive =====
+  // ===== دوال ربط وفصل Drive (مع معالجة إلغاء النافذة) =====
   const handleConnectDrive = async () => {
-    setDriveLoading(true);
-    try {
-      await signInToDrive();
-      setDriveConnected(true);
+  setDriveLoading(true);
 
-      // محاولة المزامنة
-      try {
-        const plans = await syncFromDrive();
-        if (plans) {
-          reloadPlans();
-          showCustomToast('success', 'تم الربط والمزامنة', 'تم تحميل أحدث البيانات من Drive.');
-        } else {
-          await uploadToDrive();
-          reloadPlans(); // تحديث الواجهة بعد الرفع
-          showCustomToast('success', 'تم الربط', 'تم رفع بياناتك المحلية إلى السحابة.');
-        }
-      } catch (syncError) {
-        console.error('⚠️ Sync error:', syncError);
-        reloadPlans(); // حتى لو فشلت المزامنة، نستمر بالعمل محلياً
-        showCustomToast('warning', 'تم الربط لكن فشلت المزامنة', 'يمكنك المحاولة يدوياً باستخدام زر المزامنة.');
+  // ✅ مهلة احتياطية: نوقف التحميل بعد 5 ثواني (بدلاً من 15)
+  driveTimeoutRef.current = setTimeout(() => {
+    // نستخدم driveLoading من خلال ref لتجنب مشاكل الإغلاق
+    console.warn('⚠️ Drive login popup timed out, resetting loading state.');
+    setDriveLoading(false);
+  }, 5000);
+
+  try {
+    await signInToDrive();
+    setDriveConnected(true);
+
+    try {
+      const plans = await syncFromDrive();
+      if (plans) {
+        reloadPlans();
+        showCustomToast('success', 'تم الربط والمزامنة', 'تم تحميل أحدث البيانات من Drive.');
+      } else {
+        await uploadToDrive();
+        reloadPlans();
+        showCustomToast('success', 'تم الربط', 'تم رفع بياناتك المحلية إلى السحابة.');
       }
-    } catch (error) {
-      showCustomToast('error', 'فشل ربط Google Drive', error.message || 'حدث خطأ');
-    } finally {
-      setDriveLoading(false);
+    } catch (syncError) {
+      console.error('⚠️ Sync error:', syncError);
+      reloadPlans();
+      showCustomToast('warning', 'تم الربط لكن فشلت المزامنة', 'يمكنك المحاولة يدوياً باستخدام زر المزامنة.');
     }
-  };
+  } catch (error) {
+    const errorMsg = error?.message || error?.error || '';
+    const isCancellation = 
+      errorMsg.includes('popup_closed') || 
+      errorMsg.includes('access_denied') || 
+      errorMsg.includes('cancelled') ||
+      errorMsg.includes('User cancelled') ||
+      errorMsg.includes('user closed');
+
+    if (isCancellation) {
+      console.log('ℹ️ User cancelled Google Drive sign-in.');
+      // لا نعرض رسالة خطأ
+    } else {
+      console.error('❌ Drive sign-in error:', error);
+      showCustomToast('error', 'فشل ربط Google Drive', errorMsg || 'حدث خطأ غير متوقع');
+    }
+  } finally {
+    clearTimeout(driveTimeoutRef.current);
+    driveTimeoutRef.current = null;
+    setDriveLoading(false);
+  }
+};
 
   const handleDisconnectDrive = () => {
     signOutFromDrive();
@@ -366,65 +393,85 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleExport}
-                className="h-9 w-9 p-0 rounded-xl"
-                title="تصدير الخطط كنسخة احتياطية"
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-              <label className="h-9 w-9 p-0 rounded-xl flex items-center justify-center hover:bg-muted/80 cursor-pointer transition-colors">
-                <Upload className="w-4 h-4" />
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImport}
-                  className="hidden"
-                />
+            {/* مجموعة التصدير/الاستيراد */}
+            <div className="flex items-center gap-1 border-l border-border/40 pl-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleExport}
+                      className="h-8 w-8 p-0 rounded-xl"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>تصدير الخطط</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <label className="h-8 w-8 p-0 rounded-xl flex items-center justify-center hover:bg-muted/80 cursor-pointer transition-colors">
+                <Upload className="w-3.5 h-3.5" />
+                <input type="file" accept=".json" onChange={handleImport} className="hidden" />
               </label>
             </div>
 
-            {/* زر المزامنة مع Drive */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleManualSync}
-              disabled={!driveConnected || syncing}
-              className="h-9 w-9 p-0 rounded-xl"
-              title={!driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}
-            >
-              {syncing ? (
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" />
-                </svg>
-              )}
-            </Button>
+            {/* مجموعة Drive */}
+            <div className="flex items-center gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleManualSync}
+                      disabled={!driveConnected || syncing}
+                      className="h-8 w-8 p-0 rounded-xl"
+                    >
+                      {syncing ? (
+                        <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <RefreshCw className={`w-3.5 h-3.5 ${!driveConnected ? 'text-muted-foreground/50' : 'text-foreground'}`} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{!driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* زر Google Drive */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
-              disabled={driveLoading}
-              className="h-9 w-9 p-0 rounded-xl"
-              title={driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}
-            >
-              {driveLoading ? (
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={driveConnected ? '#34A853' : 'currentColor'}>
-                  <path d="M12.01 2.39L8.46 8.14l3.55 5.75 3.55-5.75-3.55-5.75zM4.46 8.14L.91 13.89l3.55 5.75 3.55-5.75-3.55-5.75zm15.08 0l-3.55 5.75 3.55 5.75 3.55-5.75-3.55-5.75zM12.01 15.64l-3.55 5.75 3.55 5.75 3.55-5.75-3.55-5.75z" />
-                </svg>
-              )}
-            </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
+                      disabled={driveLoading}
+                      className="h-8 w-8 p-0 rounded-xl"
+                    >
+                      {driveLoading ? (
+                        <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      ) : driveConnected ? (
+                        <Cloud className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <CloudOff className="w-3.5 h-3.5 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>{driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
 
-            <button onClick={toggleDarkMode} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
-              {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
+            {/* الوضع المظلم */}
+            <button onClick={toggleDarkMode} className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>

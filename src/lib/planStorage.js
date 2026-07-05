@@ -1,5 +1,3 @@
-// src/lib/planStorage.js
-
 import { savePlansToDrive, loadPlansFromDrive, checkSignedIn } from './googleDrive';
 
 const PLANS_KEY = "quran_review_plans_v2";
@@ -19,14 +17,11 @@ export function loadAllPlans() {
 /** حفظ جميع الخطط في localStorage + رفع إلى Drive إذا كان متصلاً */
 export function saveAllPlans(plans) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
-  
-  // محاولة الرفع إلى Drive في الخلفية
   if (checkSignedIn()) {
     savePlansToDrive(plans).catch(err => {
       console.warn('⚠️ Could not save to Drive:', err);
     });
   }
-  
   return plans;
 }
 
@@ -36,18 +31,22 @@ export function loadPlan(id) {
   return plans.find(p => p.id === id) || null;
 }
 
-/** حفظ/تحديث خطة واحدة */
+/** حفظ/تحديث خطة واحدة (مع تحديث updatedAt) */
 export function savePlan(plan) {
   const plans = loadAllPlans();
   const idx = plans.findIndex(p => p.id === plan.id);
+  
+  // التأكد من وجود updatedAt
+  const updatedPlan = { ...plan, updatedAt: plan.updatedAt || new Date().toISOString() };
+  
   if (idx >= 0) {
-    plans[idx] = plan;
+    plans[idx] = updatedPlan;
   } else {
-    plans.push(plan);
+    plans.push(updatedPlan);
   }
   saveAllPlans(plans);
-  setActivePlanId(plan.id);
-  return plan;
+  setActivePlanId(updatedPlan.id);
+  return updatedPlan;
 }
 
 /** حذف خطة */

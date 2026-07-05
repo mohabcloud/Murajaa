@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,14 +23,9 @@ export default function ResetPassword() {
       return;
     }
     setLoading(true);
-    try {
-      await base44.auth.resetPassword({ resetToken, newPassword });
-      window.location.href = "/login";
-    } catch (err) {
-      setError(err.message || "Failed to reset password");
-    } finally {
-      setLoading(false);
-    }
+    // محاكاة إعادة تعيين كلمة المرور
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    window.location.href = "/login";
   };
 
   if (!resetToken) {
@@ -68,7 +62,7 @@ export default function ResetPassword() {
         <div className="space-y-2">
           <Label htmlFor="password">New Password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="password"
               type="password"
@@ -85,7 +79,7 @@ export default function ResetPassword() {
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm Password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="confirm"
               type="password"

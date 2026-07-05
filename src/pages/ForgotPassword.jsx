@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,14 +14,10 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      await base44.auth.resetPasswordRequest(email);
-    } catch {
-      // Always show success regardless
-    } finally {
-      setLoading(false);
-      setSent(true);
-    }
+    // محاكاة إرسال طلب
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setLoading(false);
+    setSent(true);
   };
 
   return (
@@ -45,7 +40,7 @@ export default function ForgotPassword() {
           <div className="space-y-2">
             <Label htmlFor="email">Email address</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 id="email"
                 type="email"

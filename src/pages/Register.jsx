@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +7,7 @@ import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -27,47 +26,34 @@ export default function Register() {
       return;
     }
     setLoading(true);
-    try {
-      await base44.auth.register({ email, password });
-      setShowOtp(true);
-    } catch (err) {
-      setError(err.message || "Registration failed");
-    } finally {
-      setLoading(false);
-    }
+    // محاكاة التسجيل
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setLoading(false);
+    setShowOtp(true);
   };
 
   const handleVerify = async () => {
     setError("");
     setLoading(true);
-    try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-      }
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    if (otpCode === "123456") {
       window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Invalid verification code");
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Invalid verification code");
     }
+    setLoading(false);
   };
 
   const handleResend = async () => {
-    setError("");
-    try {
-      await base44.auth.resendOtp(email);
-      toast({
-        title: "Code sent",
-        description: "Check your email for the new code.",
-      });
-    } catch (err) {
-      setError(err.message || "Failed to resend code");
-    }
+    toast({
+      title: "Code sent",
+      description: "Check your email for the new code.",
+    });
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
+    alert("Google login simulation - redirect to /");
+    window.location.href = "/";
   };
 
   if (showOtp) {
@@ -166,7 +152,7 @@ export default function Register() {
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="email"
               type="email"
@@ -183,7 +169,7 @@ export default function Register() {
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="password"
               type="password"
@@ -199,7 +185,7 @@ export default function Register() {
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm Password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="confirm"
               type="password"

@@ -1,5 +1,3 @@
-// src/lib/googleDrive.js
-
 /* eslint-disable no-undef */
 
 const CLIENT_ID = '97284826819-kl6ohtb6vnlofocg89p9oku69ag3i453.apps.googleusercontent.com';

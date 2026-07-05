@@ -201,17 +201,8 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
 
   // 2. توزيع الصفحات على أيام المراجعة (وليس أيام التثبيت)
   // سنقوم بتوليد الجدول مع تحديد نوع كل يوم (مراجعة، تثبيت، إجازة) ثم نوزع الصفحات لاحقاً
-  let cycleCounter = 0; // عدد الأيام في الدورة الحالية
   let phase = 'review'; // 'review' أو 'consolidation'
   let daysInPhase = 0;
-  let reviewDayIndex = 0;
-  let pagesPerWorkDay = totalPages / workDayCount;
-
-  // تخزين مؤقت للورد اليومي
-  let dailyTargets = [];
-
-  // المسار التصاعدي للصفحات
-  let currentPagePointer = startPage;
 
   // نجمع الأيام أولاً
   const days = [];
@@ -278,11 +269,9 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     days[idx].targetVerses = verses;
     days[idx].targetStartPage = realStart;
     days[idx].targetEndPage = realEnd;
-    // تحديث المؤشر
   }
 
-  // 4. أيام التثبيت: نعطيها ورداً مرجعياً (متوسط آخر يومين مراجعة مثلاً)
-  // يمكن تحسينها لاحقاً
+  // 4. أيام التثبيت: نعطيها ورداً مرجعياً (من آخر يوم مراجعة)
   const consolidationIndices = days.map((d, idx) => d.isReviewDay === true ? idx : -1).filter(i => i >= 0);
   for (let idx of consolidationIndices) {
     // نبحث عن آخر يوم مراجعة قبله
@@ -294,13 +283,11 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
       }
     }
     if (prevReviewIdx >= 0) {
-      // نأخذ نفس الورد الذي كان في ذلك اليوم (أو نضعه كمراجعة)
       const prevDay = days[prevReviewIdx];
       days[idx].targetVerses = prevDay.targetVerses || 0;
       days[idx].targetStartPage = prevDay.targetStartPage || startPage;
       days[idx].targetEndPage = prevDay.targetEndPage || endPage;
     } else {
-      // إذا لم يوجد، نعطي قيمة صفرية
       days[idx].targetVerses = 0;
       days[idx].targetStartPage = null;
       days[idx].targetEndPage = null;
@@ -352,6 +339,8 @@ export function getStats(plan) {
   return { totalDays, completedDays, partialDays, skippedDays, pendingDays, avgDailyPages: Math.round(avgDailyPages * 10) / 10 };
 }
 
+// ==================== دوال التقدم (مع تحديث updatedAt) ====================
+
 export function recordDayProgressFlexible(plan, dateStr, input) {
   const updatedPlan = { ...plan, schedule: plan.schedule.map(day => {
     if (day.date === dateStr) {
@@ -362,6 +351,7 @@ export function recordDayProgressFlexible(plan, dateStr, input) {
     return day;
   })};
   updatedPlan.completedVerses = updatedPlan.schedule.reduce((sum, d) => sum + (d.completedVerses || 0), 0);
+  updatedPlan.updatedAt = new Date().toISOString(); // ✅ تحديث وقت التعديل
   return updatedPlan;
 }
 
@@ -373,6 +363,7 @@ export function undoDayProgress(plan, dateStr) {
     return day;
   })};
   updatedPlan.completedVerses = updatedPlan.schedule.reduce((sum, d) => sum + (d.completedVerses || 0), 0);
+  updatedPlan.updatedAt = new Date().toISOString(); // ✅ تحديث وقت التعديل
   return updatedPlan;
 }
 

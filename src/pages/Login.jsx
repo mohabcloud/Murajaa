@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,18 +17,20 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    try {
-      await base44.auth.loginViaEmailPassword(email, password);
+    // محاكاة تسجيل الدخول
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (email === "test@test.com" && password === "password") {
       window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Invalid email or password");
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Invalid email or password");
     }
+    setLoading(false);
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
+    // محاكاة تسجيل الدخول بجوجل
+    alert("Google login simulation - redirect to /");
+    window.location.href = "/";
   };
 
   return (
@@ -74,7 +75,7 @@ export default function Login() {
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="email"
               type="email"
@@ -96,7 +97,7 @@ export default function Login() {
             </Link>
           </div>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="password"
               type="password"

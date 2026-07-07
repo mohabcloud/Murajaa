@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Calendar, Hash, Coffee, Sparkles, Layers, Type, Info, ChevronDown, Search, Pencil } from "lucide-react";
-// ✅ استيراد createPlan و mergePlanWithProgress
 import { createPlan, mergePlanWithProgress, formatQuranUnits, smartQuranDisplay, DAY_NAMES_AR, getLocalToday } from "@/lib/quranPlanEngine";
 import { getVersesBetween, getQuranData } from "@/lib/quranData";
 import QuranDetailsPopover from "@/components/quran/QuranDetailsPopover";
@@ -93,8 +92,8 @@ export default function CreatePlanForm({
   onPlanCreated, 
   onCancel, 
   existingPlans,
-  initialPlan = null, // ✅ جديد: خطة للتعديل
-  isEditing = false,  // ✅ جديد: وضع التعديل
+  initialPlan = null,
+  isEditing = false,
 }) {
   const quranData = useMemo(() => getQuranData(), []);
   
@@ -119,25 +118,29 @@ export default function CreatePlanForm({
     return surahs;
   }, [quranData]);
 
-  // تعبئة النموذج من initialPlan إذا كان موجوداً
   const getInitialData = useCallback(() => {
-    if (!initialPlan) return {
+  // جلب تاريخ اليوم بتنسيق YYYY-MM-DD
+  const today = getLocalToday();
+  
+  if (!initialPlan) {
+    return {
       name: "",
-      startDate: getLocalToday(),
-      endDate: "",
+      startDate: today,
+      endDate: today, // ← التغيير الجوهري: بدلاً من "" نجعلها مساوية للبداية
       startPage: 1,
       endPage: 604,
       offDays: [5],
     };
-    return {
-      name: initialPlan.name || "",
-      startDate: initialPlan.startDate || getLocalToday(),
-      endDate: initialPlan.endDate || "",
-      startPage: initialPlan.startPage || 1,
-      endPage: initialPlan.endPage || 604,
-      offDays: initialPlan.offDays || [5],
-    };
-  }, [initialPlan]);
+  }
+  return {
+    name: initialPlan.name || "",
+    startDate: initialPlan.startDate || today,
+    endDate: initialPlan.endDate || today, // أيضاً هنا نضع اليوم إذا كانت فارغة
+    startPage: initialPlan.startPage || 1,
+    endPage: initialPlan.endPage || 604,
+    offDays: initialPlan.offDays || [5],
+  };
+}, [initialPlan]);
 
   const initialData = getInitialData();
 
@@ -152,7 +155,6 @@ export default function CreatePlanForm({
 
   const [rangeType, setRangeType] = useState("surah");
   
-  // استنتاج قيم الاختيارات من initialPlan إن وجد
   const [selectedStartSurah, setSelectedStartSurah] = useState(() => {
     if (initialPlan && initialPlan.startPage) {
       const found = surahList.find(s => s.startPage <= initialPlan.startPage && s.endPage >= initialPlan.startPage);
@@ -185,7 +187,6 @@ export default function CreatePlanForm({
 
   const [vacationEnabled, setVacationEnabled] = useState(() => {
     if (initialPlan && initialPlan.schedule) {
-      // إذا كانت الخطة تحتوي على أيام تثبيت، نفعّل النظام
       const hasReviewDays = initialPlan.schedule.some(d => d.isReviewDay);
       return hasReviewDays;
     }
@@ -343,7 +344,6 @@ export default function CreatePlanForm({
     }));
   };
 
-  // ✅ دالة المعاينة المعدلة
   const handlePreview = () => {
     setError("");
     const { start, end } = calculatePages();
@@ -379,7 +379,6 @@ export default function CreatePlanForm({
 
     const vacationPattern = vacationEnabled ? { enabled: true, daysOn, daysOff } : null;
 
-    // إنشاء الخطة الجديدة
     const newPlan = createPlan({
       name,
       startDate,
@@ -396,11 +395,9 @@ export default function CreatePlanForm({
       return;
     }
 
-    // ✅ إذا كان تعديلاً، ندمج مع الخطة القديمة للحفاظ على التقدم
     let finalPlan = newPlan;
     if (isEditing && initialPlan) {
       finalPlan = mergePlanWithProgress(initialPlan, newPlan);
-      // الحفاظ على الـ id القديم
       finalPlan.id = initialPlan.id;
     } else {
       finalPlan.id = 'plan_' + Date.now();
@@ -436,8 +433,8 @@ export default function CreatePlanForm({
       <div className="bg-card rounded-2xl border border-border/60 p-6 md:p-8 space-y-6">
         {/* اسم الخطة */}
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Type className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-2 mb-4 max-md:items-start">
+            <Type className="w-4 h-4 text-primary shrink-0 max-md:mt-0.5" />
             <h3 className="font-semibold text-foreground">اسم الخطة</h3>
           </div>
           <Input
@@ -450,29 +447,28 @@ export default function CreatePlanForm({
 
         <div className="border-t border-border/40" />
 
-        {/* نطاق المراجعة - الآن بقائمة منسدلة */}
+        {/* نطاق المراجعة */}
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Hash className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-2 mb-4 max-md:items-start">
+            <Hash className="w-4 h-4 text-primary shrink-0 max-md:mt-0.5" />
             <h3 className="font-semibold text-foreground">نطاق المراجعة</h3>
           </div>
 
-          {/* ✅ استبدال الأزرار بقائمة منسدلة */}
           <div className="mb-4">
             <Label className="text-sm text-muted-foreground mb-1.5 block">نوع النطاق</Label>
             <Select value={rangeType} onValueChange={setRangeType}>
-  <SelectTrigger dir="rtl" className="text-right">
-    <SelectValue placeholder="اختر نوع النطاق" />
-  </SelectTrigger>
-  <SelectContent dir="rtl" position="popper" align="start">
-    <SelectItem value="surah">سور</SelectItem>
-    <SelectItem value="juz">أجزاء</SelectItem>
-    <SelectItem value="hizb">أحزاب</SelectItem>
-    <SelectItem value="rub">أرباع</SelectItem>
-    <SelectItem value="page">صفحات</SelectItem>
-    <SelectItem value="ayah">آيات</SelectItem>
-  </SelectContent>
-</Select>
+              <SelectTrigger dir="rtl" className="text-right">
+                <SelectValue placeholder="اختر نوع النطاق" />
+              </SelectTrigger>
+              <SelectContent dir="rtl" position="popper" align="start">
+                <SelectItem value="surah">سور</SelectItem>
+                <SelectItem value="juz">أجزاء</SelectItem>
+                <SelectItem value="hizb">أحزاب</SelectItem>
+                <SelectItem value="rub">أرباع</SelectItem>
+                <SelectItem value="page">صفحات</SelectItem>
+                <SelectItem value="ayah">آيات</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="bg-muted/30 rounded-xl p-4 space-y-4">
@@ -702,25 +698,68 @@ export default function CreatePlanForm({
 
         <div className="border-t border-border/40" />
 
-        {/* التواريخ */}
+        {/* ===== التواريخ ===== */}
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-2 mb-4 max-md:items-start">
+            <Calendar className="w-4 h-4 text-primary shrink-0 max-md:mt-0.5" />
             <h3 className="font-semibold text-foreground">الفترة الزمنية</h3>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ البداية</Label>
-              <Input type="date" value={formData.startDate}
+              <input
+                type="date"
+                value={formData.startDate}
                 onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                dir="ltr" />
+                onKeyDown={(e) => e.preventDefault()}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (e.target.showPicker) {
+                    e.target.showPicker();
+                  }
+                }}
+                lang="ar"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                dir="ltr"
+                style={{
+                  minHeight: '44px',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  fontFamily: '"Noto Sans Arabic", Tahoma, Arial, sans-serif',
+                  lineHeight: '1.5',
+                  overflow: 'visible',
+                  fontSize: '16px', // لمنع التكبير التلقائي على iOS
+                }}
+              />
             </div>
             <div>
-              <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ النهاية</Label>
-              <Input type="date" value={formData.endDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                dir="ltr" />
-            </div>
+  <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ النهاية</Label>
+  <input
+    type="date"
+    value={formData.endDate}
+    onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+    onKeyDown={(e) => e.preventDefault()}
+    onMouseDown={(e) => {
+      e.preventDefault();
+      if (e.target.showPicker) {
+        e.target.showPicker();
+      }
+    }}
+    lang="ar"
+    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+    dir="ltr"
+    style={{
+      minHeight: '44px',
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
+      fontFamily: '"Noto Sans Arabic", Tahoma, Arial, sans-serif',
+      lineHeight: '1.5',
+      overflow: 'visible',
+      fontSize: '16px',
+      color: '#000000', // إجبار اللون
+    }}
+  />
+</div>
           </div>
         </div>
 
@@ -728,13 +767,13 @@ export default function CreatePlanForm({
 
         {/* أيام الإجازة الأسبوعية */}
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Coffee className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-2 mb-4 max-md:items-start">
+            <Coffee className="w-4 h-4 text-primary shrink-0 max-md:mt-0.5" />
             <h3 className="font-semibold text-foreground">أيام الإجازة الأسبوعية</h3>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                  <Info className="w-4 h-4 text-muted-foreground cursor-help shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs text-xs">
                   <p>أيام راحة تامة من المراجعة. يتم تطبيقها في كل أسابيع الخطة.</p>
@@ -762,15 +801,15 @@ export default function CreatePlanForm({
         </div>
 
         {/* نظام التناوب */}
-        <div className="border-t border-border/40">
+        <div className="border-t border-border/40 pt-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-2 max-md:items-start">
+              <Layers className="w-4 h-4 text-primary shrink-0 max-md:mt-0.5" />
               <h3 className="font-semibold text-foreground">نظام التناوب (مراجعة / تثبيت)</h3>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                    <Info className="w-4 h-4 text-muted-foreground cursor-help shrink-0" />
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
                     <p><strong>أيام المراجعة:</strong> أيام تُقرأ فيها أجزاء جديدة.</p>
@@ -782,13 +821,17 @@ export default function CreatePlanForm({
             </div>
             <button
               onClick={() => setVacationEnabled(!vacationEnabled)}
-              className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${
-                vacationEnabled ? 'bg-primary' : 'bg-muted-foreground/30'
-              }`}
+              className={`
+                relative w-14 h-8 rounded-full transition-colors duration-300 cursor-pointer
+                ${vacationEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}
+                md:w-16 md:h-9
+              `}
             >
-              <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform duration-300 ${
-                vacationEnabled ? 'left-0.5' : 'right-0.5'
-              }`} />
+              <span className={`
+                absolute top-0.5 w-7 h-7 rounded-full bg-white shadow transition-transform duration-300
+                ${vacationEnabled ? 'left-0.5 translate-x-6 md:translate-x-7' : 'left-0.5'}
+                md:w-8 md:h-8
+              `} />
             </button>
           </div>
 
@@ -828,13 +871,13 @@ export default function CreatePlanForm({
         )}
 
         {/* أزرار التحكم */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
           {onCancel && (
-            <Button variant="outline" onClick={onCancel} className="flex-1 h-12 rounded-xl">
+            <Button variant="outline" onClick={onCancel} className="w-full sm:w-auto h-12 rounded-xl min-w-[120px]">
               إلغاء
             </Button>
           )}
-          <Button onClick={handlePreview} className="flex-1 h-12 rounded-xl text-base font-semibold" variant="outline">
+          <Button onClick={handlePreview} className="w-full sm:w-auto h-12 rounded-xl text-base font-semibold" variant="outline">
             <Sparkles className="w-4 h-4 ml-2" />
             {isEditing ? "معاينة التعديلات" : "معاينة الخطة"}
           </Button>
@@ -881,7 +924,7 @@ export default function CreatePlanForm({
 }
 
 // ============================================================
-// SurahPicker - بحث ذكي مع ترتيب النتائج حسب التشابه
+// SurahPicker
 // ============================================================
 function SurahPicker({ value, onChange, open, setOpen, surahList, placeholder }) {
   const [search, setSearch] = useState("");

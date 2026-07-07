@@ -65,9 +65,9 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
             <DropdownMenu dir="rtl">
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-4 py-2.5 hover:border-primary/30 transition-colors">
-                  <BookOpen className="w-4 h-4 text-primary" />
+                  <BookOpen className="w-4 h-4 text-primary shrink-0" />
                   <span className="font-bold text-foreground text-sm max-w-[180px] truncate">{plan.name || "بدون اسم"}</span>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
@@ -85,26 +85,26 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                 ))}
                 <div className="border-t border-border/40 mt-1 pt-1">
                   <DropdownMenuItem onClick={onNewPlan} className="text-primary font-medium">
-                    <Plus className="w-4 h-4 ml-2" /> خطة جديدة
+                    <Plus className="w-4 h-4 ml-2 shrink-0" /> خطة جديدة
                   </DropdownMenuItem>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* ✅ زر التعديل */}
+            {/* زر التعديل */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => onEditPlan(plan)}
               className="h-10 px-3 border-primary/20 hover:bg-primary/5"
             >
-              <Pencil className="w-4 h-4 ml-1" />
+              <Pencil className="w-4 h-4 ml-1 shrink-0" />
             </Button>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-destructive border-destructive/20 hover:bg-destructive/5 h-10">
-                  <Trash2 className="w-4 h-4 ml-1" />
+                  <Trash2 className="w-4 h-4 ml-1 shrink-0" />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent dir="rtl">
@@ -165,8 +165,9 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
 
         {todayData && (
           <div className={`rounded-2xl border p-6 ${todayData.isOff ? 'bg-secondary/50 border-border/40' : 'bg-primary/5 border-primary/20'}`}>
-            <h3 className="font-bold text-foreground mb-3 flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary" /> مهمة اليوم
+            <h3 className="font-bold text-foreground mb-3 flex items-center gap-2 max-md:items-start">
+              <Target className="w-5 h-5 text-primary shrink-0 max-md:mt-0.5" />
+              مهمة اليوم
             </h3>
             {todayData.isOff ? (
               <div className="text-center py-4 space-y-3">

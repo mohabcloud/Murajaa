@@ -62,10 +62,8 @@ export default function Home() {
   const [driveLoading, setDriveLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  // ===== مرجع لتوقيت المهلة الاحتياطي =====
   const driveTimeoutRef = useRef(null);
 
-  // ===== إعادة تحميل الخطط (مع معالجة الأخطاء) =====
   const reloadPlans = () => {
     try {
       let plans = loadAllPlans();
@@ -88,7 +86,6 @@ export default function Home() {
     }
   };
 
-  // ===== المزامنة اليدوية مع Drive =====
   const handleManualSync = async () => {
     if (!driveConnected) {
       showCustomToast('warning', 'غير متصل بـ Drive', 'يرجى ربط حساب Google أولاً.');
@@ -111,7 +108,6 @@ export default function Home() {
     }
   };
 
-  // ===== تهيئة Google Drive =====
   useEffect(() => {
     const initDrive = async () => {
       try {
@@ -134,58 +130,54 @@ export default function Home() {
     initDrive();
   }, []);
 
-  // ===== دوال ربط وفصل Drive (مع معالجة إلغاء النافذة) =====
   const handleConnectDrive = async () => {
-  setDriveLoading(true);
+    setDriveLoading(true);
 
-  // ✅ مهلة احتياطية: نوقف التحميل بعد 5 ثواني (بدلاً من 15)
-  driveTimeoutRef.current = setTimeout(() => {
-    // نستخدم driveLoading من خلال ref لتجنب مشاكل الإغلاق
-    console.warn('⚠️ Drive login popup timed out, resetting loading state.');
-    setDriveLoading(false);
-  }, 5000);
-
-  try {
-    await signInToDrive();
-    setDriveConnected(true);
+    driveTimeoutRef.current = setTimeout(() => {
+      console.warn('⚠️ Drive login popup timed out, resetting loading state.');
+      setDriveLoading(false);
+    }, 5000);
 
     try {
-      const plans = await syncFromDrive();
-      if (plans) {
-        reloadPlans();
-        showCustomToast('success', 'تم الربط والمزامنة', 'تم تحميل أحدث البيانات من Drive.');
-      } else {
-        await uploadToDrive();
-        reloadPlans();
-        showCustomToast('success', 'تم الربط', 'تم رفع بياناتك المحلية إلى السحابة.');
-      }
-    } catch (syncError) {
-      console.error('⚠️ Sync error:', syncError);
-      reloadPlans();
-      showCustomToast('warning', 'تم الربط لكن فشلت المزامنة', 'يمكنك المحاولة يدوياً باستخدام زر المزامنة.');
-    }
-  } catch (error) {
-    const errorMsg = error?.message || error?.error || '';
-    const isCancellation = 
-      errorMsg.includes('popup_closed') || 
-      errorMsg.includes('access_denied') || 
-      errorMsg.includes('cancelled') ||
-      errorMsg.includes('User cancelled') ||
-      errorMsg.includes('user closed');
+      await signInToDrive();
+      setDriveConnected(true);
 
-    if (isCancellation) {
-      console.log('ℹ️ User cancelled Google Drive sign-in.');
-      // لا نعرض رسالة خطأ
-    } else {
-      console.error('❌ Drive sign-in error:', error);
-      showCustomToast('error', 'فشل ربط Google Drive', errorMsg || 'حدث خطأ غير متوقع');
+      try {
+        const plans = await syncFromDrive();
+        if (plans) {
+          reloadPlans();
+          showCustomToast('success', 'تم الربط والمزامنة', 'تم تحميل أحدث البيانات من Drive.');
+        } else {
+          await uploadToDrive();
+          reloadPlans();
+          showCustomToast('success', 'تم الربط', 'تم رفع بياناتك المحلية إلى السحابة.');
+        }
+      } catch (syncError) {
+        console.error('⚠️ Sync error:', syncError);
+        reloadPlans();
+        showCustomToast('warning', 'تم الربط لكن فشلت المزامنة', 'يمكنك المحاولة يدوياً باستخدام زر المزامنة.');
+      }
+    } catch (error) {
+      const errorMsg = error?.message || error?.error || '';
+      const isCancellation = 
+        errorMsg.includes('popup_closed') || 
+        errorMsg.includes('access_denied') || 
+        errorMsg.includes('cancelled') ||
+        errorMsg.includes('User cancelled') ||
+        errorMsg.includes('user closed');
+
+      if (isCancellation) {
+        console.log('ℹ️ User cancelled Google Drive sign-in.');
+      } else {
+        console.error('❌ Drive sign-in error:', error);
+        showCustomToast('error', 'فشل ربط Google Drive', errorMsg || 'حدث خطأ غير متوقع');
+      }
+    } finally {
+      clearTimeout(driveTimeoutRef.current);
+      driveTimeoutRef.current = null;
+      setDriveLoading(false);
     }
-  } finally {
-    clearTimeout(driveTimeoutRef.current);
-    driveTimeoutRef.current = null;
-    setDriveLoading(false);
-  }
-};
+  };
 
   const handleDisconnectDrive = () => {
     signOutFromDrive();
@@ -193,7 +185,6 @@ export default function Home() {
     showCustomToast('info', 'تم فصل Google Drive', 'ستستمر البيانات محلياً');
   };
 
-  // ===== دوال التطبيق الأساسية =====
   useEffect(() => {
     async function init() {
       try {
@@ -240,7 +231,6 @@ export default function Home() {
     document.documentElement.classList.toggle("dark", newVal);
   };
 
-  // ===== دوال إدارة الخطط =====
   const handlePlanCreated = (newPlan) => {
     if (!newPlan.schedule) newPlan.schedule = [];
     savePlan(newPlan);
@@ -296,7 +286,6 @@ export default function Home() {
     setEditingPlan(null);
   };
 
-  // ===== دوال التصدير والاستيراد =====
   const handleExport = () => {
     const plans = loadAllPlans();
     if (plans.length === 0) {
@@ -344,7 +333,6 @@ export default function Home() {
     event.target.value = null;
   };
 
-  // ===== حالات التحميل والخطأ =====
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4" dir="rtl">
@@ -376,22 +364,23 @@ export default function Home() {
     );
   }
 
-  // ===== الواجهة الرئيسية =====
+  // ===== الواجهة الرئيسية (مع تحسين Header) =====
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-primary-foreground" />
+            <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shadow-md shadow-primary/20">
+              <BookOpen className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
             </div>
             <div>
-              <h1 className="text-base font-bold font-heading text-foreground leading-tight">مُراجِع</h1>
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                {allPlans.length > 0 ? `${allPlans.length} خطط` : "إدارة مراجعة القرآن"}
+              <h1 className="text-lg font-bold font-heading text-foreground leading-tight">مُراجِع</h1>
+              <p className="text-[10px] text-muted-foreground leading-tight opacity-70">
+                إدارة مراجعة القرآن
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             {/* مجموعة التصدير/الاستيراد */}
             <div className="flex items-center gap-1 border-l border-border/40 pl-2">

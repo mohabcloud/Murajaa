@@ -6,25 +6,40 @@
 
 @layer base {
     :root {
+        /* ===== الخلفيات والبطاقات (كما كانت) ===== */
         --background: 40 30% 97%;
         --foreground: 200 25% 15%;
         --card: 40 25% 99%;
         --card-foreground: 200 25% 15%;
         --popover: 40 25% 99%;
         --popover-foreground: 200 25% 15%;
-        --primary: 160 45% 35%;
+        
+        /* ===== الأخضر الزمردي (مطابق لـ #1A6E5A) ===== */
+        --primary: 165 45% 38%;
         --primary-foreground: 0 0% 100%;
+        
+        /* ===== الثانوي (كما هو) ===== */
         --secondary: 40 30% 93%;
         --secondary-foreground: 200 25% 20%;
+        
+        /* ===== العناصر الخافتة (كما هي) ===== */
         --muted: 40 20% 94%;
         --muted-foreground: 200 10% 45%;
-        --accent: 35 60% 50%;
+        
+        /* ===== الذهبي (مطابق لـ #caae61) ===== */
+        --accent: 45 60% 55%;
         --accent-foreground: 0 0% 100%;
+        
+        /* ===== الأخطاء (كما هي) ===== */
         --destructive: 0 72% 51%;
         --destructive-foreground: 0 0% 98%;
+        
+        /* ===== الحواف والإدخالات ===== */
         --border: 40 20% 88%;
         --input: 40 20% 88%;
-        --ring: 160 45% 35%;
+        --ring: 45 60% 55%;
+        
+        /* ===== باقي المتغيرات (كما هي) ===== */
         --chart-1: 160 45% 35%;
         --chart-2: 35 60% 50%;
         --chart-3: 200 25% 40%;
@@ -45,6 +60,7 @@
         --sidebar-ring: 217.2 91.2% 59.8%;
     }
 
+    /* ===== الوضع المظلم (يبقى كما هو تماماً) ===== */
     .dark {
         --background: 180 8% 6%;
         --foreground: 40 15% 90%;
@@ -92,34 +108,37 @@
 }
 
 /* ======================================================== */
-/* تعديل مخصص للتحكم في شكل أزرار الـ Spin لـ حقول الأرقام */
+/* تعديل أزرار الـ Spin (كما هو) */
 /* ======================================================== */
-
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   background-color: transparent !important;
   background-image: none !important;
   cursor: pointer;
 }
-
 .dark input[type="number"]::-webkit-inner-spin-button,
 .dark input[type="number"]::-webkit-outer-spin-button {
   filter: invert(1);
 }
-
 input[type="number"] {
   -moz-appearance: textfield;
 }
-
 .dark input[type="number"] {
   color-scheme: dark;
 }
 
 /* ============================================================ */
-/* تخصيص مظهر Sonner - RTL كامل */
+/* تحسين حجم حقول التاريخ */
 /* ============================================================ */
+input[type="date"] {
+  min-height: 44px;
+  font-size: 16px !important;
+  cursor: pointer;
+}
 
-/* تنسيق التوست نفسه */
+/* ============================================================ */
+/* تخصيص مظهر Sonner (كما هو) */
+/* ============================================================ */
 .murajaa-toast {
   background: hsl(var(--background)) !important;
   color: hsl(var(--foreground)) !important;
@@ -130,30 +149,20 @@ input[type="number"] {
   direction: rtl !important;
   transition: all 0.2s ease !important;
 }
-
-/* تأثير hover على التوست */
 .murajaa-toast:hover {
   border-color: hsl(var(--primary) / 0.4) !important;
   box-shadow: 0 15px 40px -15px rgba(0, 0, 0, 0.25) !important;
   transform: scale(1.01) !important;
 }
-
-/* رسائل النجاح */
 .murajaa-toast[data-type="success"] {
   border-right: 4px solid hsl(var(--primary)) !important;
 }
-
-/* رسائل الخطأ */
 .murajaa-toast[data-type="error"] {
   border-right: 4px solid hsl(var(--destructive)) !important;
 }
-
-/* رسائل المعلومات */
 .murajaa-toast[data-type="info"] {
   border-right: 4px solid hsl(var(--accent)) !important;
 }
-
-/* أيقونات */
 .murajaa-toast [data-icon="success"] {
   color: hsl(var(--primary)) !important;
 }
@@ -163,25 +172,19 @@ input[type="number"] {
 .murajaa-toast [data-icon="info"] {
   color: hsl(var(--accent)) !important;
 }
-
-/* عنوان الرسالة */
 .murajaa-toast [data-title] {
   font-weight: 600 !important;
   font-size: 0.95rem !important;
   color: hsl(var(--foreground)) !important;
 }
-
-/* نص الوصف */
 .murajaa-toast [data-description] {
   font-size: 0.85rem !important;
   color: hsl(var(--muted-foreground)) !important;
 }
 
 /* ============================================================ */
-/* زر الإغلاق (X) في الزاوية اليسرى العلوية - تجاوز تام */
+/* زر الإغلاق (X) في الزاوية اليسرى العلوية (كما هو) */
 /* ============================================================ */
-
-/* ✅ استهداف الزر عبر كل الطرق الممكنة */
 .murajaa-toaster .murajaa-toast [data-close-button],
 .murajaa-toaster .murajaa-toast button[data-close-button],
 .murajaa-toaster [data-close-button],
@@ -213,8 +216,6 @@ input[type="number"] {
   z-index: 10 !important;
   opacity: 1 !important;
 }
-
-/* ✅ عند التمرير فوق زر الإغلاق */
 .murajaa-toaster .murajaa-toast [data-close-button]:hover,
 .murajaa-toaster .murajaa-toast button[data-close-button]:hover,
 .murajaa-toaster [data-close-button]:hover,
@@ -225,8 +226,6 @@ input[type="number"] {
   transform: none !important;
   scale: 1 !important;
 }
-
-/* ✅ عند الضغط */
 .murajaa-toaster .murajaa-toast [data-close-button]:active,
 .murajaa-toaster .murajaa-toast button[data-close-button]:active,
 .murajaa-toaster [data-close-button]:active,
@@ -235,8 +234,6 @@ input[type="number"] {
   transform: none !important;
   scale: 1 !important;
 }
-
-/* ✅ إزالة أي تنسيقات من Sonner قد تؤثر على الموضع */
 [data-sonner-toast] [data-close-button] {
   position: absolute !important;
   top: 8px !important;
@@ -245,12 +242,9 @@ input[type="number"] {
   inset-inline-start: 8px !important;
   inset-inline-end: auto !important;
 }
-
-/* ✅ منع أي تغيير غير مرغوب */
 .murajaa-toast:hover {
   transform: scale(1.01) !important;
 }
-
 .murajaa-toast [data-close-button]:hover,
 .murajaa-toast [data-close-button]:focus,
 .murajaa-toast [data-close-button]:active {

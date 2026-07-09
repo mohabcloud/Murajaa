@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { getQuranData, getVersesBetween, getPageTexts, initQuranData } from "@/lib/quranData";
+// src/components/QuranInteractivePicker.jsx
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { getQuranData, getVersesBetween, getPageTexts, initQuranData, getSurahName } from "@/lib/quranData";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X, ChevronsLeft, ChevronsRight } from "lucide-react";
 
@@ -21,13 +22,15 @@ export default function QuranInteractivePicker({
 
   const quranData = useMemo(() => getQuranData(), []);
 
-  // دالة لتحويل الأرقام إلى عربية شرقية
   const toArabicNumber = (num) => {
-    const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-    return num.toString().split('').map(d => arabicDigits[parseInt(d)]).join('');
+    const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+    return num
+      .toString()
+      .split("")
+      .map((d) => arabicDigits[parseInt(d)])
+      .join("");
   };
 
-  // تحميل البيانات
   useEffect(() => {
     async function loadData() {
       try {
@@ -41,7 +44,6 @@ export default function QuranInteractivePicker({
     loadData();
   }, []);
 
-  // تحديث الصفحة عند تغيير currentPage
   useEffect(() => {
     if (!quranData || loading) return;
     const texts = getPageTexts(currentPage);
@@ -49,15 +51,13 @@ export default function QuranInteractivePicker({
     const info = quranData.pageMap[currentPage];
     setPageData(info);
     if (info?.startChapter) {
-      const surahName = getSurahName(info.startChapter);
-      setSurahName(surahName);
+      const name = getSurahName(info.startChapter);
+      setSurahName(name);
     }
   }, [currentPage, quranData, loading]);
 
-  // ✅ عند التحميل الأول، نحدد البداية تلقائياً (أول آية في صفحة البداية)
   useEffect(() => {
     if (loading || !quranData) return;
-    // تحديد البداية تلقائياً كأول آية في صفحة البداية
     const startPage = targetStartPage || planStartPage || 1;
     if (!startSelection) {
       setStartSelection({ page: startPage, verseIndex: 0 });
@@ -65,51 +65,48 @@ export default function QuranInteractivePicker({
     }
   }, [loading, quranData, targetStartPage, planStartPage]);
 
-  const getSurahName = (id) => {
-    const names = {
-      1: "الفاتحة", 2: "البقرة", 3: "آل عمران", 4: "النساء", 5: "المائدة",
-      6: "الأنعام", 7: "الأعراف", 8: "الأنفال", 9: "التوبة", 10: "يونس",
-      11: "هود", 12: "يوسف", 13: "الرعد", 14: "إبراهيم", 15: "الحجر",
-      16: "النحل", 17: "الإسراء", 18: "الكهف", 19: "مريم", 20: "طه",
-      21: "الأنبياء", 22: "الحج", 23: "المؤمنون", 24: "النور", 25: "الفرقان",
-      26: "الشعراء", 27: "النمل", 28: "القصص", 29: "العنكبوت", 30: "الروم",
-      31: "لقمان", 32: "السجدة", 33: "الأحزاب", 34: "سبأ", 35: "فاطر",
-      36: "يس", 37: "الصافات", 38: "ص", 39: "الزمر", 40: "غافر",
-      41: "فصلت", 42: "الشورى", 43: "الزخرف", 44: "الدخان", 45: "الجاثية",
-      46: "الأحقاف", 47: "محمد", 48: "الفتح", 49: "الحجرات", 50: "ق",
-      51: "الذاريات", 52: "الطور", 53: "النجم", 54: "القمر", 55: "الرحمن",
-      56: "الواقعة", 57: "الحديد", 58: "المجادلة", 59: "الحشر", 60: "الممتحنة",
-      61: "الصف", 62: "الجمعة", 63: "المنافقون", 64: "التغابن", 65: "الطلاق",
-      66: "التحريم", 67: "الملك", 68: "القلم", 69: "الحاقة", 70: "المعارج",
-      71: "نوح", 72: "الجن", 73: "المزمل", 74: "المدثر", 75: "القيامة",
-      76: "الإنسان", 77: "المرسلات", 78: "النبأ", 79: "النازعات", 80: "عبس",
-      81: "التكوير", 82: "الإنفطار", 83: "المطففين", 84: "الإنشقاق", 85: "البروج",
-      86: "الطارق", 87: "الأعلى", 88: "الغاشية", 89: "الفجر", 90: "البلد",
-      91: "الشمس", 92: "الليل", 93: "الضحى", 94: "الشرح", 95: "التين",
-      96: "العلق", 97: "القدر", 98: "البينة", 99: "الزلزلة", 100: "العاديات",
-      101: "القارعة", 102: "التكاثر", 103: "العصر", 104: "الهمزة", 105: "الفيل",
-      106: "قريش", 107: "الماعون", 108: "الكوثر", 109: "الكافرون", 110: "النصر",
-      111: "المسد", 112: "الإخلاص", 113: "الفلق", 114: "الناس"
-    };
-    return names[id] || `سورة ${id}`;
-  };
+  const calculateVersesBetween = useCallback(
+    (startPage, startVerse, endPage, endVerse) => {
+      const clampedStart = Math.max(planStartPage, Math.min(planEndPage, startPage));
+      const clampedEnd = Math.max(planStartPage, Math.min(planEndPage, endPage));
+      if (clampedStart !== startPage || clampedEnd !== endPage) {
+        console.warn("النطاق المحدد خارج النطاق المسموح، تم تعديله تلقائياً");
+      }
+
+      let count = 0;
+      if (clampedStart === clampedEnd) {
+        return endVerse - startVerse + 1;
+      }
+      const startTexts = getPageTexts(clampedStart);
+      count += startTexts.length - startVerse;
+      for (let p = clampedStart + 1; p < clampedEnd; p++) {
+        count += getPageTexts(p).length;
+      }
+      count += endVerse + 1;
+      return count;
+    },
+    [planStartPage, planEndPage]
+  );
 
   const handleVerseClick = (verseIndex) => {
-    // إذا لم يتم تحديد بداية، نحددها
+    if (currentPage < planStartPage || currentPage > planEndPage) {
+      const newPage = Math.max(planStartPage, Math.min(planEndPage, currentPage));
+      setCurrentPage(newPage);
+      return;
+    }
+
     if (!startSelection) {
       setStartSelection({ page: currentPage, verseIndex });
       setEndSelection(null);
       return;
     }
 
-    // إذا تم تحديد بداية ونهاية، نعيد تعيين الكل (بداية جديدة)
     if (startSelection && endSelection) {
       setStartSelection({ page: currentPage, verseIndex });
       setEndSelection(null);
       return;
     }
 
-    // إذا تم تحديد بداية فقط
     if (startSelection && !endSelection) {
       const startPage = startSelection.page;
       const startVerse = startSelection.verseIndex;
@@ -135,28 +132,21 @@ export default function QuranInteractivePicker({
     }
   };
 
-  const calculateVersesBetween = (startPage, startVerse, endPage, endVerse) => {
-    let count = 0;
-    if (startPage === endPage) {
-      return endVerse - startVerse + 1;
-    }
-    const startTexts = getPageTexts(startPage);
-    count += startTexts.length - startVerse;
-    for (let p = startPage + 1; p < endPage; p++) {
-      count += getPageTexts(p).length;
-    }
-    count += endVerse + 1;
-    return count;
-  };
-
   const clearSelection = () => {
-    setStartSelection(null);
+    const startPage = Math.max(planStartPage, Math.min(planEndPage, targetStartPage || planStartPage || 1));
+    const newStart = { page: startPage, verseIndex: 0 };
+    setStartSelection(newStart);
     setEndSelection(null);
-    onSelectionChange({ type: "clear", versesCount: 0 });
-    // إعادة تعيين البداية تلقائياً إلى أول آية في صفحة البداية
-    const startPage = targetStartPage || planStartPage || 1;
-    setStartSelection({ page: startPage, verseIndex: 0 });
     setCurrentPage(startPage);
+    onSelectionChange({
+      type: "verses",
+      startPage: startPage,
+      startVerse: 1,
+      endPage: startPage,
+      endVerse: 1,
+      versesCount: 1,
+      displayLabel: `ص ${startPage} آية 1`,
+    });
   };
 
   const handlePrevPage = () => {
@@ -210,20 +200,28 @@ export default function QuranInteractivePicker({
       {/* رأس الصفحة */}
       <div className="flex flex-col items-center border-b border-border/40 pb-4">
         <div className="flex items-center justify-between w-full">
-          <div className="text-lg font-bold text-foreground font-serif">
-            {surahName || "القرآن الكريم"}
-          </div>
+          <div className="text-lg font-bold text-foreground font-serif">{surahName || "القرآن الكريم"}</div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={goToFirstPage} className="h-8 w-8 p-0">
               <ChevronsRight className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={handlePrevPage} disabled={currentPage <= (planStartPage || 1)} className="h-8 w-8 p-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={currentPage <= (planStartPage || 1)}
+              className="h-8 w-8 p-0"
+            >
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <span className="text-sm font-medium text-muted-foreground min-w-[60px] text-center">
-              ص {currentPage}
-            </span>
-            <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage >= (planEndPage || 604)} className="h-8 w-8 p-0">
+            <span className="text-sm font-medium text-muted-foreground min-w-[60px] text-center">ص {currentPage}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={currentPage >= (planEndPage || 604)}
+              className="h-8 w-8 p-0"
+            >
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={goToLastPage} className="h-8 w-8 p-0">
@@ -234,7 +232,9 @@ export default function QuranInteractivePicker({
         <div className="text-xs text-muted-foreground mt-1">
           {pageData?.juzu ? `الجزء ${pageData.juzu} · الحزب ${pageData.hizb}` : ""}
           <span className="mx-2">|</span>
-          <span className="text-primary/70">النطاق: {planStartPage} - {planEndPage}</span>
+          <span className="text-primary/70">
+            النطاق: {planStartPage} - {planEndPage}
+          </span>
         </div>
       </div>
 
@@ -276,7 +276,7 @@ export default function QuranInteractivePicker({
         </Button>
       </div>
 
-      {/* ✅ نص الصفحة - كل آية في سطر منفصل */}
+      {/* نص الصفحة */}
       <div className="bg-background border rounded-2xl p-4 md:p-6 min-h-[300px]">
         <div className="flex flex-col gap-1" dir="rtl">
           {pageTexts.length > 0 ? (
@@ -286,7 +286,8 @@ export default function QuranInteractivePicker({
               const isStart = isStartVerse(index);
               const isEnd = isEndVerse(index);
 
-              let className = "w-full text-right px-3 py-1 rounded-lg transition-all cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/30 font-serif text-lg leading-[2.2] text-foreground";
+              let className =
+                "w-full text-right px-3 py-1 rounded-lg transition-all cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/30 font-serif text-lg leading-[2.2] text-foreground";
 
               if (isStart) {
                 className += " bg-emerald-100/70 dark:bg-emerald-900/40 border-r-4 border-emerald-400";
@@ -297,15 +298,9 @@ export default function QuranInteractivePicker({
               }
 
               return (
-                <button
-                  key={index}
-                  onClick={() => handleVerseClick(index)}
-                  className={className}
-                >
+                <button key={index} onClick={() => handleVerseClick(index)} className={className}>
                   {item.text}
-                  <span className="text-base text-muted-foreground mr-1 font-serif">
-                    ۝{toArabicNumber(verseNumber)}
-                  </span>
+                  <span className="text-base text-muted-foreground mr-1 font-serif">۝{toArabicNumber(verseNumber)}</span>
                 </button>
               );
             })
@@ -315,7 +310,6 @@ export default function QuranInteractivePicker({
         </div>
       </div>
 
-      {/* إرشادات */}
       <div className="text-center text-xs text-muted-foreground border-t border-border/40 pt-3">
         <p>انقر على أي آية لتحديد النهاية. البداية محددة تلقائياً.</p>
         <p className="text-primary/60">الآيات المحددة تظهر بلون مميز</p>

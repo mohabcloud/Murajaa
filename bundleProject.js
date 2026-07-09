@@ -18,6 +18,7 @@ const bundles = {
     'src_lib.txt': ['src/lib'],
     'src_pages.txt': ['src/pages'],
     'src_utils.txt': ['src/utils'],
+    'public_files.txt': ['public'], // ✅ إضافة مجلد public
 };
 
 // دالة لتقسيم المحتوى إلى عدد محدد من الأجزاء
@@ -73,14 +74,25 @@ function getFiles(dir, fileList = []) {
     try {
         const files = fs.readdirSync(dir);
         files.forEach(file => {
-            if (['node_modules', '.git', 'dist', '.vscode', '.next'].includes(file)) return;
+            // استثناء المجلدات غير المرغوب فيها
+            if (['node_modules', '.git', 'dist', '.vscode', '.next', 'dev-dist', 'assets'].includes(file)) return;
+            // استثناء الملفات الكبيرة أو الثنائية
             if (file === 'quran_complete_data.json') return;
+            if (file === 'oauth_client.json') return;
+            if (file === 'package-lock.json') return;
+            if (file === 'bundleProject.js') return;
+            if (file === 'getTree.js') return;
+            if (file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.svg') || file.endsWith('.ico')) return;
+            if (file.endsWith('.lock')) return;
+            if (file === '8080') return; // ملف بدون امتداد غير مرغوب
 
             const filePath = path.join(dir, file);
             const stat = fs.statSync(filePath);
             if (stat.isDirectory()) {
+                // إذا كان المجلد هو public/assets، نتخطاه (الصور)
+                if (file === 'assets' && dir.endsWith('public')) return;
                 getFiles(filePath, fileList);
-            } else if (/\.(js|jsx|json|css|html|md|env|ts|tsx)$/.test(file)) {
+            } else if (/\.(js|jsx|json|css|html|md|env|ts|tsx|txt|toml|xml)$/.test(file)) {
                 fileList.push({ path: filePath, name: file });
             }
         });
@@ -106,24 +118,25 @@ Object.entries(bundles).forEach(([bundleName, folders]) => {
     let content = '';
     const isRootFiles = bundleName === 'root_files.txt';
     const isSrcRoot = bundleName === 'src_root.txt';
-    // تحديد ما إذا كان هذا الملف هو src_components (الوحيد الذي سيتم تقسيمه)
     const isComponents = bundleName === 'src_components.txt';
 
     allFiles.forEach(fileObj => {
         const relativePath = fileObj.path.replace(__dirname, '').replace(/\\/g, '/');
         
         if (isRootFiles) {
-            if (!relativePath.startsWith('/src/') && !relativePath.startsWith('/node_modules')) {
-                if (fileObj.name !== 'package-lock.json' && fileObj.name !== 'bundleProject.js' && fileObj.name !== 'getTree.js' && !fileObj.name.endsWith('.lock')) {
-                    content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
-                }
+            // ملفات الجذر (غير داخل src/ أو node_modules أو public)
+            if (!relativePath.startsWith('/src/') && !relativePath.startsWith('/node_modules') && !relativePath.startsWith('/public')) {
+                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
             }
         }
         else if (isSrcRoot) {
             if (relativePath.startsWith('/src/') && !relativePath.substring(5).includes('/')) {
-                if (fileObj.name !== 'vite-env.d.ts') {
-                    content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
-                }
+                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
+            }
+        }
+        else if (bundleName === 'public_files.txt') {
+            if (relativePath.startsWith('/public/') && !relativePath.startsWith('/public/assets/')) {
+                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
             }
         }
         else {
@@ -134,11 +147,9 @@ Object.entries(bundles).forEach(([bundleName, folders]) => {
     });
 
     if (content) {
-        // فقط src_components سيتم تقسيمه إلى 4 أجزاء
         if (isComponents) {
             writeBundledFile(bundleName, content, true, COMPONENTS_PARTS);
         } else {
-            // باقي الملفات تُكتب كاملة بدون تقسيم
             writeBundledFile(bundleName, content, false);
         }
     } else {

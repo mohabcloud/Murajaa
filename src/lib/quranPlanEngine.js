@@ -1,13 +1,12 @@
+// src/lib/quranPlanEngine.js
 /**
- * محرك حساب خطة مراجعة القرآن - يعتمد على بيانات من quranData.js
+ * محرك حساب خطة مراجعة القرآن
  */
 
 import { getVersesBetween as getVersesBetweenData, getPageRange as getPageRangeData, getPageVerseCount as getPageVerseCountData, getQuranData } from './quranData';
 import { formatQuranUnits, smartQuranDisplay } from './utils';
 
 export const DAY_NAMES_AR = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-
-// ==================== دوال مساعدة للبيانات ====================
 
 export function getPagesMap() {
   const data = getQuranData();
@@ -26,8 +25,6 @@ export function getVersesBetween(startPage, endPage) {
 export function getPageRange(pageNum) {
   return getPageRangeData(pageNum);
 }
-
-// ==================== دوال إضافية ====================
 
 export function getSurahsList() {
   const data = getQuranData();
@@ -74,9 +71,11 @@ export function getVersesCountBetweenPoints(startSurah, startVerse, endSurah, en
   return count;
 }
 
-// ==================== محرك التخطيط ====================
-
 export function versesToPages(verses, startPage = 1) {
+  return versesToPagesCount(verses, startPage);
+}
+
+export function versesToPagesCount(verses, startPage = 1) {
   const map = getPagesMap();
   let remaining = verses;
   let pages = 0;
@@ -105,64 +104,102 @@ export function flexibleInputToVerses(input, startPage = 1) {
   return versesFromPages + (parseInt(input.verses || 0, 10) || 0);
 }
 
+// ✅ دالة createPlan المحسنة مع سجلات
 export function createPlan({ name, startDate, endDate, startPage, endPage, offDays = [], vacationPattern = null }) {
-  const totalVerses = getVersesBetween(startPage, endPage);
-  const totalPages = endPage - startPage + 1;
-  const totalDays = daysBetween(startDate, endDate);
+  console.log("🔍 createPlan called with:", { name, startDate, endDate, startPage, endPage, offDays, vacationPattern });
 
-  // استخراج إعدادات التناوب
-  let daysOn = 0;
-  let daysOff = 0;
-  let vacationEnabled = false;
-  if (vacationPattern && vacationPattern.enabled) {
-    vacationEnabled = true;
-    daysOn = vacationPattern.daysOn || 2;
-    daysOff = vacationPattern.daysOff || 2;
+  try {
+    // التحقق من صحة المدخلات
+    if (!startDate || !endDate) {
+      return { error: "تاريخ البداية والنهاية مطلوبان." };
+    }
+    if (startPage > endPage) {
+      return { error: "صفحة البداية يجب أن تكون قبل صفحة النهاية." };
+    }
+    if (offDays.length === 7) {
+      return { error: "لا يمكن تحديد جميع أيام الأسبوع كإجازة." };
+    }
+
+    const totalVerses = getVersesBetween(startPage, endPage);
+    console.log("📊 totalVerses:", totalVerses);
+    
+    const totalPages = endPage - startPage + 1;
+    console.log("📊 totalPages:", totalPages);
+    
+    const totalDays = daysBetween(startDate, endDate);
+    console.log("📊 totalDays:", totalDays);
+
+    let daysOn = 0;
+    let daysOff = 0;
+    let vacationEnabled = false;
+    if (vacationPattern && vacationPattern.enabled) {
+      vacationEnabled = true;
+      daysOn = vacationPattern.daysOn || 2;
+      daysOff = vacationPattern.daysOff || 2;
+    }
+    console.log("🔄 vacationEnabled:", vacationEnabled, "daysOn:", daysOn, "daysOff:", daysOff);
+
+    const result = generateSchedule({
+      startDate,
+      endDate,
+      startPage,
+      endPage,
+      offDays: new Set(offDays),
+      totalPages,
+      vacationEnabled,
+      daysOn,
+      daysOff,
+    });
+    console.log("📋 generateSchedule result:", result);
+
+    if (result.error) {
+      console.warn("⚠️ generateSchedule error:", result.error);
+      return { error: result.error };
+    }
+
+    const schedule = result.schedule;
+    if (!schedule || !Array.isArray(schedule) || schedule.length === 0) {
+      console.error("❌ schedule is invalid:", schedule);
+      return { error: "فشل إنشاء الجدول." };
+    }
+
+    const workDays = schedule.filter(d => d.isReviewDay === false && d.isOff === false).length;
+    const reviewDays = schedule.filter(d => d.isReviewDay === true).length;
+    const totalOffDays = schedule.filter(d => d.isOff === true).length;
+    console.log("📊 workDays:", workDays, "reviewDays:", reviewDays, "totalOffDays:", totalOffDays);
+
+    if (workDays <= 0) {
+      console.warn("⚠️ no work days");
+      return { error: "لا توجد أيام مراجعة كافية." };
+    }
+
+    const dailyVerses = Math.ceil(totalVerses / workDays);
+    console.log("📊 dailyVerses:", dailyVerses);
+
+    const plan = {
+      id: 'plan_' + Date.now(),
+      name,
+      startDate,
+      endDate,
+      startPage,
+      endPage,
+      totalVerses,
+      totalPages,
+      schedule,
+      createdAt: new Date().toISOString(),
+      workDays,
+      reviewDays,
+      dailyVerses,
+      totalDays,
+      offDayCount: totalOffDays,
+    };
+    console.log("✅ Plan created successfully:", plan.id);
+    return plan;
+
+  } catch (err) {
+    console.error("❌ Exception in createPlan:", err);
+    return { error: "حدث خطأ داخلي: " + (err.message || "غير معروف") };
   }
-
-  // توليد الجدول
-  const result = generateSchedule({
-    startDate,
-    endDate,
-    startPage,
-    endPage,
-    offDays: new Set(offDays),
-    totalPages,
-    vacationEnabled,
-    daysOn,
-    daysOff,
-  });
-
-  if (result.error) return { error: result.error };
-
-  const schedule = result.schedule;
-  // أيام المراجعة الفعلية (التي تحتوي على ورد جديد)
-  const workDays = schedule.filter(d => d.isReviewDay === false && d.isOff === false).length;
-  const reviewDays = schedule.filter(d => d.isReviewDay === true).length;
-  const totalOffDays = schedule.filter(d => d.isOff === true).length;
-
-  if (workDays <= 0) return { error: "لا توجد أيام مراجعة كافية." };
-
-  // حساب الورد اليومي للمراجعة
-  const dailyVerses = Math.ceil(totalVerses / workDays);
-
-  return {
-    id: 'plan_' + Date.now(),
-    name,
-    startDate,
-    endDate,
-    startPage,
-    endPage,
-    totalVerses,
-    totalPages,
-    schedule,
-    createdAt: new Date().toISOString(),
-    workDays,
-    reviewDays,
-    dailyVerses,
-    totalDays,
-    offDayCount: totalOffDays,
-  };
 }
 
 export function daysBetween(startDate, endDate) {
@@ -180,14 +217,11 @@ export function getLocalToday() {
   return toLocalDateStr(now);
 }
 
-// ==================== توليد الجدول ====================
-
 function generateSchedule({ startDate, endDate, startPage, endPage, offDays, totalPages, vacationEnabled, daysOn, daysOff }) {
   const schedule = [];
   const cur = new Date(startDate);
   const end = new Date(endDate);
 
-  // 1. حساب أيام العمل الفعلية (تجاهل أيام الإجازة الأسبوعية)
   let workDayCount = 0;
   let temp = new Date(startDate);
   while (temp <= end) {
@@ -197,14 +231,13 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     }
     temp.setDate(temp.getDate() + 1);
   }
-  if (workDayCount === 0) return { error: "لا توجد أيام عمل (جميع الأيام إجازة)", schedule: [] };
+  if (workDayCount === 0) {
+    return { error: "لا توجد أيام عمل (جميع الأيام إجازة)", schedule: [] };
+  }
 
-  // 2. توزيع الصفحات على أيام المراجعة (وليس أيام التثبيت)
-  // سنقوم بتوليد الجدول مع تحديد نوع كل يوم (مراجعة، تثبيت، إجازة) ثم نوزع الصفحات لاحقاً
-  let phase = 'review'; // 'review' أو 'consolidation'
+  let phase = 'review';
   let daysInPhase = 0;
 
-  // نجمع الأيام أولاً
   const days = [];
   while (cur <= end) {
     const dateStr = toLocalDateStr(cur);
@@ -215,11 +248,9 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     let isReviewDay = false;
 
     if (isScheduledOff) {
-      // إجازة أسبوعية (راحة تامة)
       isOff = true;
       isReviewDay = false;
     } else if (vacationEnabled) {
-      // نظام التناوب
       if (phase === 'review') {
         isOff = false;
         isReviewDay = false;
@@ -228,7 +259,7 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
           phase = 'consolidation';
           daysInPhase = 0;
         }
-      } else { // consolidation
+      } else {
         isOff = false;
         isReviewDay = true;
         daysInPhase++;
@@ -238,7 +269,6 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
         }
       }
     } else {
-      // لا يوجد تناوب، كل الأيام مراجعة
       isOff = false;
       isReviewDay = false;
     }
@@ -253,16 +283,18 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     cur.setDate(cur.getDate() + 1);
   }
 
-  // 3. توزيع الصفحات على أيام المراجعة فقط
   const reviewDaysIndices = days.map((d, idx) => d.isOff === false && d.isReviewDay === false ? idx : -1).filter(i => i >= 0);
   const totalReviewDays = reviewDaysIndices.length;
+
+  if (totalReviewDays === 0) {
+    return { error: "لا توجد أيام مراجعة", schedule: days };
+  }
 
   for (let i = 0; i < totalReviewDays; i++) {
     const idx = reviewDaysIndices[i];
     const progress = (i + 1) / totalReviewDays;
     const endPageForDay = Math.min(endPage, startPage + Math.round(progress * totalPages) - 1);
     const startPageForDay = (i === 0) ? startPage : Math.min(endPage, startPage + Math.round((i) / totalReviewDays * totalPages));
-    // نضمن عدم تجاوز البداية للنهاية
     const realStart = Math.min(startPageForDay, endPageForDay);
     const realEnd = Math.max(startPageForDay, endPageForDay);
     const verses = getVersesBetween(realStart, realEnd);
@@ -271,10 +303,8 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     days[idx].targetEndPage = realEnd;
   }
 
-  // 4. أيام التثبيت: نعطيها ورداً مرجعياً (من آخر يوم مراجعة)
   const consolidationIndices = days.map((d, idx) => d.isReviewDay === true ? idx : -1).filter(i => i >= 0);
   for (let idx of consolidationIndices) {
-    // نبحث عن آخر يوم مراجعة قبله
     let prevReviewIdx = -1;
     for (let j = idx - 1; j >= 0; j--) {
       if (days[j].isOff === false && days[j].isReviewDay === false) {
@@ -294,22 +324,18 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     }
   }
 
-  // 5. أيام الإجازة الأسبوعية: targetVerses = 0
   for (let d of days) {
     if (d.isOff) {
       d.targetVerses = 0;
       d.targetStartPage = null;
       d.targetEndPage = null;
     }
-    // إضافة حالة pending
     d.status = 'pending';
     d.completedVerses = 0;
   }
 
   return { schedule: days };
 }
-
-// ==================== دوال التقدم والإحصائيات ====================
 
 export function getTodayData(plan) {
   const today = getLocalToday();
@@ -339,8 +365,6 @@ export function getStats(plan) {
   return { totalDays, completedDays, partialDays, skippedDays, pendingDays, avgDailyPages: Math.round(avgDailyPages * 10) / 10 };
 }
 
-// ==================== دوال التقدم (مع تحديث updatedAt) ====================
-
 export function recordDayProgressFlexible(plan, dateStr, input) {
   const updatedPlan = { ...plan, schedule: plan.schedule.map(day => {
     if (day.date === dateStr) {
@@ -351,7 +375,7 @@ export function recordDayProgressFlexible(plan, dateStr, input) {
     return day;
   })};
   updatedPlan.completedVerses = updatedPlan.schedule.reduce((sum, d) => sum + (d.completedVerses || 0), 0);
-  updatedPlan.updatedAt = new Date().toISOString(); // ✅ تحديث وقت التعديل
+  updatedPlan.updatedAt = new Date().toISOString();
   return updatedPlan;
 }
 
@@ -363,20 +387,11 @@ export function undoDayProgress(plan, dateStr) {
     return day;
   })};
   updatedPlan.completedVerses = updatedPlan.schedule.reduce((sum, d) => sum + (d.completedVerses || 0), 0);
-  updatedPlan.updatedAt = new Date().toISOString(); // ✅ تحديث وقت التعديل
+  updatedPlan.updatedAt = new Date().toISOString();
   return updatedPlan;
 }
 
-// ==================== دمج التقدم عند التعديل ====================
-
-/**
- * دمج خطة جديدة مع تقدم خطة قديمة
- * @param {Object} oldPlan - الخطة القديمة (التي تحتوي على التقدم)
- * @param {Object} newPlanData - الخطة الجديدة (التي تم إنشاؤها بواسطة createPlan)
- * @returns {Object} الخطة المدمجة مع الاحتفاظ بالتقدم للأيام المتطابقة
- */
 export function mergePlanWithProgress(oldPlan, newPlanData) {
-  // 1. إنشاء خريطة للأيام القديمة (مفتاح = التاريخ)
   const oldScheduleMap = {};
   if (oldPlan && oldPlan.schedule) {
     oldPlan.schedule.forEach(day => {
@@ -384,18 +399,15 @@ export function mergePlanWithProgress(oldPlan, newPlanData) {
     });
   }
 
-  // 2. دمج الجدول الجديد مع التقدم القديم
   const mergedSchedule = newPlanData.schedule.map(newDay => {
     const oldDay = oldScheduleMap[newDay.date];
     if (oldDay) {
-      // إذا كان اليوم موجوداً في الخطة القديمة، نحتفظ بالتقدم والحالة
       return {
         ...newDay,
         status: oldDay.status || 'pending',
         completedVerses: oldDay.completedVerses || 0,
       };
     }
-    // إذا كان اليوم جديداً (لم يكن موجوداً في الخطة القديمة)
     return {
       ...newDay,
       status: 'pending',
@@ -403,10 +415,8 @@ export function mergePlanWithProgress(oldPlan, newPlanData) {
     };
   });
 
-  // 3. حساب إجمالي الآيات المنجزة من الجدول المدمج
   const totalCompletedVerses = mergedSchedule.reduce((sum, day) => sum + (day.completedVerses || 0), 0);
 
-  // 4. إرجاع الخطة المدمجة مع الاحتفاظ بالخصائص الجديدة
   return {
     ...newPlanData,
     schedule: mergedSchedule,
@@ -414,5 +424,4 @@ export function mergePlanWithProgress(oldPlan, newPlanData) {
   };
 }
 
-// تصدير دوال التنسيق من utils
 export { formatQuranUnits, smartQuranDisplay };

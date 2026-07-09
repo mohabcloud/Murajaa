@@ -164,6 +164,7 @@ export default function CreatePlanForm({
   const [hasPreview, setHasPreview] = useState(false);
 
   // ===== Helper functions for page calculation =====
+  // ضبط رقم الآية عند تغيير السورة (لتحديث الحد الأقصى)
   useEffect(() => {
     const max = getMaxAyahInSurah(startSurahAyah);
     setStartAyahNum((prev) => Math.min(Math.max(1, prev), max || 1));
@@ -173,6 +174,21 @@ export default function CreatePlanForm({
     const max = getMaxAyahInSurah(endSurahAyah);
     setEndAyahNum((prev) => Math.min(Math.max(1, prev), max || 1));
   }, [endSurahAyah, getMaxAyahInSurah]);
+
+  // ✅ إضافة useEffect للتحقق من رقم الآية عند التغيير المباشر
+  useEffect(() => {
+    const max = getMaxAyahInSurah(startSurahAyah);
+    if (startAyahNum > max) {
+      setStartAyahNum(max || 1);
+    }
+  }, [startAyahNum, startSurahAyah, getMaxAyahInSurah]);
+
+  useEffect(() => {
+    const max = getMaxAyahInSurah(endSurahAyah);
+    if (endAyahNum > max) {
+      setEndAyahNum(max || 1);
+    }
+  }, [endAyahNum, endSurahAyah, getMaxAyahInSurah]);
 
   function getPageFromJuz(juzNum, data, isEnd = false) {
     let firstPage = null;
@@ -262,6 +278,7 @@ export default function CreatePlanForm({
       start = getPageFromRub(selectedStartRub, quranData);
       end = getPageFromRub(selectedEndRub, quranData, true);
     } else if (rangeType === "ayah") {
+      // ✅ نستخدم القيم المعدلة (المضمونة ضمن الحد الأقصى)
       const clampedStart = Math.min(Math.max(1, startAyahNum), getMaxAyahInSurah(startSurahAyah) || 1);
       const clampedEnd = Math.min(Math.max(1, endAyahNum), getMaxAyahInSurah(endSurahAyah) || 1);
       start = getPageFromAyah(startSurahAyah, clampedStart, quranData, false);
@@ -635,7 +652,10 @@ export default function CreatePlanForm({
                     type="number"
                     min={1}
                     value={startAyahNum}
-                    onChange={(e) => setStartAyahNum(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      setStartAyahNum(Math.max(1, val));
+                    }}
                     className="text-center h-10 rounded-xl border-input focus:ring-1 focus:ring-primary"
                     dir="ltr"
                   />
@@ -656,7 +676,10 @@ export default function CreatePlanForm({
                     type="number"
                     min={1}
                     value={endAyahNum}
-                    onChange={(e) => setEndAyahNum(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      setEndAyahNum(Math.max(1, val));
+                    }}
                     className="text-center h-10 rounded-xl border-input focus:ring-1 focus:ring-primary"
                     dir="ltr"
                   />
@@ -883,7 +906,7 @@ export default function CreatePlanForm({
   );
 }
 
-// ===== SurahPicker component (موحد الشكل) =====
+// ===== SurahPicker component =====
 function SurahPicker({ value, onChange, open, setOpen, surahList, placeholder }) {
   const [search, setSearch] = useState("");
 

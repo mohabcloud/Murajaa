@@ -1,55 +1,47 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
+/* استيراد خط Noto Sans Arabic فقط (للتطبيق) */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100;200;300;400;500;600;700;800;900&display=swap');
 
+/* === تعليمات Tailwind === */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* === الطبقة الأساسية (Base Layer) === */
 @layer base {
     :root {
-        /* ===== الخلفيات والبطاقات (كما كانت) ===== */
+        /* الألوان الأساسية */
         --background: 40 30% 97%;
         --foreground: 200 25% 15%;
         --card: 40 25% 99%;
         --card-foreground: 200 25% 15%;
-        --popover: 40 25% 99%;
-        --popover-foreground: 200 25% 15%;
-        
-        /* ===== الأخضر الزمردي (مطابق لـ #1A6E5A) ===== */
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
         --primary: 165 45% 38%;
         --primary-foreground: 0 0% 100%;
-        
-        /* ===== الثانوي (كما هو) ===== */
         --secondary: 40 30% 93%;
         --secondary-foreground: 200 25% 20%;
-        
-        /* ===== العناصر الخافتة (كما هي) ===== */
         --muted: 40 20% 94%;
         --muted-foreground: 200 10% 45%;
-        
-        /* ===== الذهبي (مطابق لـ #caae61) ===== */
         --accent: 45 60% 55%;
         --accent-foreground: 0 0% 100%;
-        
-        /* ===== الأخطاء (كما هي) ===== */
         --destructive: 0 72% 51%;
         --destructive-foreground: 0 0% 98%;
-        
-        /* ===== الحواف والإدخالات ===== */
         --border: 40 20% 88%;
         --input: 40 20% 88%;
         --ring: 45 60% 55%;
-        
-        /* ===== باقي المتغيرات (كما هي) ===== */
         --chart-1: 160 45% 35%;
         --chart-2: 35 60% 50%;
         --chart-3: 200 25% 40%;
         --chart-4: 40 30% 60%;
         --chart-5: 160 30% 50%;
         --radius: 0.75rem;
-        --font-heading: 'Tajawal', ui-sans-serif, system-ui, sans-serif;
-        --font-body: 'Tajawal', ui-sans-serif, system-ui, sans-serif;
-        --font-display: 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+        
+        /* ✅ الخط الوحيد للتطبيق: Noto Sans Arabic */
+        --font-heading: 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+        --font-body: 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+        --font-display: 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif;
         --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        
         --sidebar-background: 0 0% 98%;
         --sidebar-foreground: 240 5.3% 26.1%;
         --sidebar-primary: 240 5.9% 10%;
@@ -60,14 +52,13 @@
         --sidebar-ring: 217.2 91.2% 59.8%;
     }
 
-    /* ===== الوضع المظلم (يبقى كما هو تماماً) ===== */
     .dark {
         --background: 180 8% 6%;
         --foreground: 40 15% 90%;
         --card: 180 8% 9%;
         --card-foreground: 40 15% 90%;
-        --popover: 180 8% 10%;
-        --popover-foreground: 40 15% 90%;
+        --popover: 222.2 84% 4.9%;
+        --popover-foreground: 210 40% 98%;
         --primary: 160 35% 42%;
         --primary-foreground: 0 0% 100%;
         --secondary: 180 8% 14%;
@@ -97,157 +88,205 @@
     }
 }
 
+/* تطبيق الأنماط الأساسية */
 @layer base {
     * {
         @apply border-border outline-ring/50;
     }
-
     body {
         @apply bg-background text-foreground font-body;
     }
 }
 
-/* ======================================================== */
-/* تعديل أزرار الـ Spin (كما هو) */
-/* ======================================================== */
+/* ================================================================ */
+/*  الأنماط الإضافية                                               */
+/* ================================================================ */
+
+/* أزرار الـ Spin في حقول الأرقام */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
-  background-color: transparent !important;
-  background-image: none !important;
-  cursor: pointer;
+    background-color: transparent !important;
+    background-image: none !important;
+    cursor: pointer;
 }
 .dark input[type="number"]::-webkit-inner-spin-button,
 .dark input[type="number"]::-webkit-outer-spin-button {
-  filter: invert(1);
+    filter: invert(1);
 }
 input[type="number"] {
-  -moz-appearance: textfield;
+    -moz-appearance: textfield;
 }
 .dark input[type="number"] {
-  color-scheme: dark;
+    color-scheme: dark;
 }
 
-/* ============================================================ */
 /* تحسين حجم حقول التاريخ */
-/* ============================================================ */
 input[type="date"] {
-  min-height: 44px;
-  font-size: 16px !important;
-  cursor: pointer;
+    min-height: 44px;
+    font-size: 16px !important;
+    cursor: pointer;
 }
 
-/* ============================================================ */
-/* تخصيص مظهر Sonner (كما هو) */
-/* ============================================================ */
+/* ================================================================ */
+/*  تخصيص مظهر Sonner (الإشعارات)                                  */
+/* ================================================================ */
 .murajaa-toast {
-  background: hsl(var(--background)) !important;
-  color: hsl(var(--foreground)) !important;
-  border: 1px solid hsl(var(--border)) !important;
-  border-radius: var(--radius) !important;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.2) !important;
-  font-family: var(--font-body) !important;
-  direction: rtl !important;
-  transition: all 0.2s ease !important;
+    background: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.2) !important;
+    font-family: var(--font-body) !important;
+    direction: rtl !important;
+    transition: all 0.2s ease !important;
 }
 .murajaa-toast:hover {
-  border-color: hsl(var(--primary) / 0.4) !important;
-  box-shadow: 0 15px 40px -15px rgba(0, 0, 0, 0.25) !important;
-  transform: scale(1.01) !important;
+    border-color: hsl(var(--primary) / 0.4) !important;
+    box-shadow: 0 15px 40px -15px rgba(0, 0, 0, 0.25) !important;
+    transform: scale(1.01) !important;
 }
 .murajaa-toast[data-type="success"] {
-  border-right: 4px solid hsl(var(--primary)) !important;
+    border-right: 4px solid hsl(var(--primary)) !important;
 }
 .murajaa-toast[data-type="error"] {
-  border-right: 4px solid hsl(var(--destructive)) !important;
+    border-right: 4px solid hsl(var(--destructive)) !important;
 }
 .murajaa-toast[data-type="info"] {
-  border-right: 4px solid hsl(var(--accent)) !important;
+    border-right: 4px solid hsl(var(--accent)) !important;
 }
 .murajaa-toast [data-icon="success"] {
-  color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary)) !important;
 }
 .murajaa-toast [data-icon="error"] {
-  color: hsl(var(--destructive)) !important;
+    color: hsl(var(--destructive)) !important;
 }
 .murajaa-toast [data-icon="info"] {
-  color: hsl(var(--accent)) !important;
+    color: hsl(var(--accent)) !important;
 }
 .murajaa-toast [data-title] {
-  font-weight: 600 !important;
-  font-size: 0.95rem !important;
-  color: hsl(var(--foreground)) !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    color: hsl(var(--foreground)) !important;
 }
 .murajaa-toast [data-description] {
-  font-size: 0.85rem !important;
-  color: hsl(var(--muted-foreground)) !important;
+    font-size: 0.85rem !important;
+    color: hsl(var(--muted-foreground)) !important;
 }
 
-/* ============================================================ */
-/* زر الإغلاق (X) في الزاوية اليسرى العلوية (كما هو) */
-/* ============================================================ */
+/* زر الإغلاق (X) في الإشعارات */
 .murajaa-toaster .murajaa-toast [data-close-button],
 .murajaa-toaster .murajaa-toast button[data-close-button],
 .murajaa-toaster [data-close-button],
 .murajaa-toast [data-close-button] {
-  position: absolute !important;
-  top: 8px !important;
-  left: 8px !important;
-  right: auto !important;
-  inset-inline-start: 8px !important;
-  inset-inline-end: auto !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-width: 28px !important;
-  min-height: 28px !important;
-  border-radius: 50% !important;
-  border: 1px solid hsl(var(--border) / 0.5) !important;
-  background: transparent !important;
-  color: hsl(var(--muted-foreground)) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 14px !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  cursor: pointer !important;
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
-  transform: none !important;
-  scale: 1 !important;
-  z-index: 10 !important;
-  opacity: 1 !important;
+    position: absolute !important;
+    top: 8px !important;
+    left: 8px !important;
+    right: auto !important;
+    inset-inline-start: 8px !important;
+    inset-inline-end: auto !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    border-radius: 50% !important;
+    border: 1px solid hsl(var(--border) / 0.5) !important;
+    background: transparent !important;
+    color: hsl(var(--muted-foreground)) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
+    transform: none !important;
+    scale: 1 !important;
+    z-index: 10 !important;
+    opacity: 1 !important;
 }
 .murajaa-toaster .murajaa-toast [data-close-button]:hover,
 .murajaa-toaster .murajaa-toast button[data-close-button]:hover,
 .murajaa-toaster [data-close-button]:hover,
 .murajaa-toast [data-close-button]:hover {
-  background-color: hsl(var(--muted) / 0.2) !important;
-  color: hsl(var(--foreground)) !important;
-  border-color: hsl(var(--primary) / 0.5) !important;
-  transform: none !important;
-  scale: 1 !important;
+    background-color: hsl(var(--muted) / 0.2) !important;
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--primary) / 0.5) !important;
+    transform: none !important;
+    scale: 1 !important;
 }
 .murajaa-toaster .murajaa-toast [data-close-button]:active,
 .murajaa-toaster .murajaa-toast button[data-close-button]:active,
 .murajaa-toaster [data-close-button]:active,
 .murajaa-toast [data-close-button]:active {
-  background-color: hsl(var(--muted) / 0.4) !important;
-  transform: none !important;
-  scale: 1 !important;
+    background-color: hsl(var(--muted) / 0.4) !important;
+    transform: none !important;
+    scale: 1 !important;
 }
 [data-sonner-toast] [data-close-button] {
-  position: absolute !important;
-  top: 8px !important;
-  left: 8px !important;
-  right: auto !important;
-  inset-inline-start: 8px !important;
-  inset-inline-end: auto !important;
+    position: absolute !important;
+    top: 8px !important;
+    left: 8px !important;
+    right: auto !important;
+    inset-inline-start: 8px !important;
+    inset-inline-end: auto !important;
 }
 .murajaa-toast:hover {
-  transform: scale(1.01) !important;
+    transform: scale(1.01) !important;
 }
 .murajaa-toast [data-close-button]:hover,
 .murajaa-toast [data-close-button]:focus,
 .murajaa-toast [data-close-button]:active {
-  transform: none !important;
-  scale: 1 !important;
+    transform: none !important;
+    scale: 1 !important;
+}
+
+/* ================================================================ */
+/*  إصلاح محاذاة النصوص في حقول الإدخال على الهواتف                */
+/* ================================================================ */
+input,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"] {
+    line-height: normal !important;
+    vertical-align: middle !important;
+    font-size: 16px !important;
+}
+
+.flex input,
+.flex input[type="text"],
+.flex input[type="number"] {
+    line-height: normal !important;
+    vertical-align: middle !important;
+}
+
+[data-radix-select-trigger],
+[class*="SelectTrigger"] {
+    font-size: 16px !important;
+    line-height: normal !important;
+}
+
+[class*="ArabicDatePicker"] input,
+[class*="arabic-date-picker"] input {
+    font-size: 16px !important;
+    line-height: normal !important;
+}
+
+input[type="text"],
+input[type="number"] {
+    min-height: auto !important;
+    height: auto !important;
+}
+
+/* ================================================================ */
+/*  إصلاح Tooltip للوضع الليلي                                      */
+/* ================================================================ */
+[role="tooltip"] {
+    background-color: hsl(var(--popover)) !important;
+    color: hsl(var(--popover-foreground)) !important;
+    border-color: hsl(var(--border)) !important;
 }

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/components/quran/Dashboard.jsx
+import React, { useState, useEffect } from "react";
 import { Calendar, Target, TrendingUp, Trash2, BookOpen, Layers, Plus, ChevronDown, Pencil } from "lucide-react";
 import { getStats, getProgress, getTodayData, recordDayProgressFlexible, undoDayProgress, formatQuranUnits, smartQuranDisplay, versesToPages } from "@/lib/quranPlanEngine";
 import { savePlan, deletePlan, loadAllPlans, setActivePlanId } from "@/lib/planStorage";
@@ -17,10 +18,36 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, onSwitchPlan, onNewPlan, onEditPlan }) {
   const [recordDay, setRecordDay] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const [isDark, setIsDark] = useState(false);
+  
+  useEffect(() => {
+    const checkDark = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkDark();
+    
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    
+    return () => observer.disconnect();
+  }, []);
+
+  const tooltipColors = {
+    bg: isDark ? 'hsl(180, 8%, 9%)' : '#ffffff',
+    text: isDark ? 'hsl(40, 15%, 90%)' : '#1e293b',
+    border: isDark ? 'hsl(180, 8%, 18%)' : '#e2e8f0',
+  };
 
   if (!plan || !plan.schedule || !Array.isArray(plan.schedule)) {
     return (
@@ -91,15 +118,34 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* زر التعديل */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEditPlan(plan)}
-              className="h-10 px-3 border-primary/20 hover:bg-primary/5"
-            >
-              <Pencil className="w-4 h-4 ml-1 shrink-0" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEditPlan(plan)}
+                    className="h-10 px-3 border-primary/20 hover:bg-primary/5"
+                  >
+                    <Pencil className="w-4 h-4 ml-1 shrink-0" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="text-xs border"
+                  style={{
+                    backgroundColor: tooltipColors.bg,
+                    color: tooltipColors.text,
+                    borderColor: tooltipColors.border,
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                  }}
+                >
+                  <p>تعديل الخطة</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>

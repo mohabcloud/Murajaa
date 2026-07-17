@@ -18,17 +18,16 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
   const juzCount = Math.floor(pagesCovered / 20);
   const remainingPages = pagesCovered % 20;
 
-  // جمع السور التي تمر بها الخطة باستخدام getSurahList
   const surahsInRange = getSurahsInRange(startPage, endPageExact);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors inline-flex"
+          className="inline-flex items-center justify-center"
           title="تفاصيل إضافية"
         >
-          <Info className="w-3 h-3 text-muted-foreground" />
+          <Info className="w-4 h-4 stroke-[1.5]" style={{ color: 'hsl(var(--muted-foreground))' }} />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-4" align="start" side="bottom" dir="rtl">
@@ -108,7 +107,7 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
   );
 }
 
-/** إيجاد رقم الصفحة النهائية بعد استهلاك عدد من الآيات ابتداء من startPage */
+// ===== دوال مساعدة =====
 function findEndPage(verses, startPage) {
   const d = getQuranData();
   if (!d) return Math.min(604, startPage + Math.ceil(verses / 10));
@@ -125,20 +124,16 @@ function findEndPage(verses, startPage) {
   return Math.min(604, currentPage);
 }
 
-/** جمع أسماء السور التي تمر بها الخطة بين صفحتين */
 function getSurahsInRange(startPage, endPage) {
   const d = getQuranData();
   if (!d) return [];
 
-  // استخدام getSurahList للحصول على أسماء السور
   const surahList = d.surahList || [];
   const surahs = new Set();
 
-  // تحديد السور التي تقع في النطاق
   for (const surah of surahList) {
     const sStart = surah.startPage || 1;
     const sEnd = surah.endPage || 604;
-    // إذا كان نطاق السورة يتقاطع مع النطاق المطلوب
     if (sStart <= endPage && sEnd >= startPage) {
       surahs.add(surah.name);
     }

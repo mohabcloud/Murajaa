@@ -1,3 +1,4 @@
+// src/pages/Home.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { loadAllPlans, saveAllPlans, savePlan, deletePlan, loadActivePlan, setActivePlanId } from "@/lib/planStorage";
 import { initQuranData } from "@/lib/quranData";
@@ -364,7 +365,14 @@ export default function Home() {
     );
   }
 
-  // ===== الواجهة الرئيسية (مع تحسين Header) =====
+  // ===== تعريف ألوان Tooltip حسب الوضع =====
+  const tooltipColors = {
+    bg: isDark ? 'hsl(180, 8%, 9%)' : '#ffffff',
+    text: isDark ? 'hsl(40, 15%, 90%)' : '#1e293b',
+    border: isDark ? 'hsl(180, 8%, 18%)' : '#e2e8f0',
+  };
+
+  // ===== الواجهة الرئيسية =====
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
@@ -387,24 +395,54 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <button
                       onClick={handleExport}
-                      className="h-8 w-8 p-0 rounded-xl"
+                      className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200"
                     >
                       <Download className="w-3.5 h-3.5" />
-                    </Button>
+                    </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
+                  <TooltipContent
+                    side="bottom"
+                    className="text-xs border"
+                    style={{
+                      backgroundColor: tooltipColors.bg,
+                      color: tooltipColors.text,
+                      borderColor: tooltipColors.border,
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                    }}
+                  >
                     <p>تصدير الخطط</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <label className="h-8 w-8 p-0 rounded-xl flex items-center justify-center hover:bg-muted/80 cursor-pointer transition-colors">
-                <Upload className="w-3.5 h-3.5" />
-                <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-              </label>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="text-xs border"
+                    style={{
+                      backgroundColor: tooltipColors.bg,
+                      color: tooltipColors.text,
+                      borderColor: tooltipColors.border,
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <p>استيراد الخطط</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* مجموعة Drive */}
@@ -412,21 +450,30 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <button
                       onClick={handleManualSync}
                       disabled={!driveConnected || syncing}
-                      className="h-8 w-8 p-0 rounded-xl"
+                      className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200 disabled:opacity-50"
                     >
                       {syncing ? (
                         <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <RefreshCw className={`w-3.5 h-3.5 ${!driveConnected ? 'text-muted-foreground/50' : 'text-foreground'}`} />
                       )}
-                    </Button>
+                    </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
+                  <TooltipContent
+                    side="bottom"
+                    className="text-xs border"
+                    style={{
+                      backgroundColor: tooltipColors.bg,
+                      color: tooltipColors.text,
+                      borderColor: tooltipColors.border,
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                    }}
+                  >
                     <p>{!driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}</p>
                   </TooltipContent>
                 </Tooltip>
@@ -435,12 +482,10 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <button
                       onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
                       disabled={driveLoading}
-                      className="h-8 w-8 p-0 rounded-xl"
+                      className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200 disabled:opacity-50"
                     >
                       {driveLoading ? (
                         <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -449,9 +494,20 @@ export default function Home() {
                       ) : (
                         <CloudOff className="w-3.5 h-3.5 text-muted-foreground" />
                       )}
-                    </Button>
+                    </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
+                  <TooltipContent
+                    side="bottom"
+                    className="text-xs border"
+                    style={{
+                      backgroundColor: tooltipColors.bg,
+                      color: tooltipColors.text,
+                      borderColor: tooltipColors.border,
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                    }}
+                  >
                     <p>{driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}</p>
                   </TooltipContent>
                 </Tooltip>
@@ -459,7 +515,10 @@ export default function Home() {
             </div>
 
             {/* الوضع المظلم */}
-            <button onClick={toggleDarkMode} className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
+            <button
+              onClick={toggleDarkMode}
+              className="h-8 w-8 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200"
+            >
               {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
           </div>
@@ -482,6 +541,7 @@ export default function Home() {
             onSwitchPlan={handleSwitchPlan}
             onNewPlan={handleNewPlan}
             onEditPlan={handleEditPlan}
+            isDark={isDark} // ✅ تمرير isDark إلى Dashboard
           />
         ) : (
           <div className="text-center py-12">

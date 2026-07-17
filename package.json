@@ -14,6 +14,13 @@
   "dependencies": {
     "@base44/sdk": "^0.8.32",
     "@base44/vite-plugin": "^1.0.23",
+    "@fontsource/almarai": "^5.2.8",
+    "@fontsource/cairo": "^5.2.7",
+    "@fontsource/noto-naskh-arabic": "^5.2.11",
+    "@fontsource/noto-sans-arabic": "^5.2.10",
+    "@fontsource/reem-kufi": "^5.2.11",
+    "@fontsource/scheherazade-new": "^5.2.9",
+    "@fontsource/tajawal": "^5.2.7",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",

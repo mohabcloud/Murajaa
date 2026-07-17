@@ -13,6 +13,12 @@ import {
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// ===== دوال التحويل اليدوي للأرقام =====
+const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+const toArabicManual = (num: number): string => {
+  return num.toString().split('').map(d => arabicDigits[parseInt(d)]).join('');
+};
+
 interface ArabicDatePickerProps {
   value: string;
   onChange: (date: string) => void;
@@ -51,6 +57,13 @@ export function ArabicDatePicker({
     }
   };
 
+  const formatDateWithArabic = (date: Date): string => {
+    const day = toArabicManual(date.getDate());
+    const month = format(date, "MMMM", { locale: arSA });
+    const year = toArabicManual(date.getFullYear());
+    return `${day} ${month} ${year}`;
+  };
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -60,23 +73,29 @@ export function ArabicDatePicker({
           onFocus={() => setIsActive(true)}
           onBlur={() => setIsActive(false)}
           className={cn(
-            "w-full justify-start text-right font-normal h-11 px-3",
-            "select-none focus:outline-none transition-all duration-300 rounded-md border",
-            "flex items-center gap-2",
+            "w-full min-h-[40px] px-3 rounded-xl border text-base leading-none",
+            "flex items-center gap-2 text-right",
+            "transition-all duration-300",
             isActive ? "bg-primary/10 border-primary/50" : "bg-transparent border-input",
             !value && "text-muted-foreground",
             disabled && "opacity-50 cursor-not-allowed",
             className
           )}
+          style={{
+            minHeight: '40px',
+            height: 'auto',
+            paddingTop: '4px',
+            paddingBottom: '4px',
+          }}
         >
           <CalendarIcon className="h-4 w-4 shrink-0" />
-          {value ? (
-            <span>
-              {format(selectedDate!, "dd MMMM yyyy", { locale: arSA })}
-            </span>
-          ) : (
-            <span>{placeholder}</span>
-          )}
+          <span className="flex-1 truncate" style={{ lineHeight: '1.3' }}>
+            {value && selectedDate ? (
+              <span>{formatDateWithArabic(selectedDate)}</span>
+            ) : (
+              <span>{placeholder}</span>
+            )}
+          </span>
         </button>
       </PopoverTrigger>
       {/* @ts-expect-error - Radix UI PopoverContent types issue with children */}

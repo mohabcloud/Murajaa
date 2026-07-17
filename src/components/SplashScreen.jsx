@@ -1,7 +1,22 @@
+// src/components/SplashScreen.jsx
 import React, { useEffect, useState } from 'react';
 
 const SplashScreen = ({ onFinish }) => {
   const [stage, setStage] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // الكشف عن نوع الجهاز
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // اختيار الخط حسب الجهاز
+  const splashFont = isMobile ? "'Noto Sans Arabic', sans-serif" : "'Tajawal', sans-serif";
 
   useEffect(() => {
     const timer1 = setTimeout(() => setStage(1), 100);
@@ -68,13 +83,12 @@ const SplashScreen = ({ onFinish }) => {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        fontFamily: '"Tajawal", sans-serif',
         background: 'linear-gradient(180deg, #1A6E5A 0%, #1A4A3A 100%)',
         zIndex: 9999,
         overflow: 'hidden',
       }}
     >
-      {/* ✅ الطبقة الشفافة الأولى (Overlay 1) - كما في الأصل */}
+      {/* الطبقات الشفافة */}
       <div
         style={{
           position: 'absolute',
@@ -86,8 +100,6 @@ const SplashScreen = ({ onFinish }) => {
           pointerEvents: 'none',
         }}
       />
-
-      {/* ✅ الطبقة الشفافة الثانية (Overlay 2) - كما في الأصل */}
       <div
         style={{
           position: 'absolute',
@@ -188,16 +200,17 @@ const SplashScreen = ({ onFinish }) => {
         </div>
       </div>
 
+      {/* ✅ العنوان بخط حسب الجهاز */}
       <h1
         style={{
-          fontFamily: '"Tajawal", sans-serif',
+          fontFamily: splashFont,
           fontWeight: 700,
           fontSize: titleSize,
           color: '#caae61',
           textAlign: 'center',
           textShadow: '0 4px 20px rgba(0,0,0,0.42)',
           marginBottom: '4px',
-          padding: '9px 20px', // ← تم تصحيح padding
+          padding: '9px 20px',
           opacity: stage >= 4 ? 1 : 0,
           transform: stage >= 4 ? 'translateY(0)' : 'translateY(30px)',
           transition: 'opacity 0.7s ease, transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -208,9 +221,10 @@ const SplashScreen = ({ onFinish }) => {
         مُراجِع
       </h1>
 
+      {/* ✅ النص الفرعي بخط حسب الجهاز */}
       <p
         style={{
-          fontFamily: '"Tajawal", sans-serif',
+          fontFamily: splashFont,
           fontWeight: 400,
           fontSize: subtitleSize,
           color: '#F5F0E1',
@@ -218,7 +232,7 @@ const SplashScreen = ({ onFinish }) => {
           opacity: stage >= 4 ? 0.9 : 0,
           transform: stage >= 4 ? 'translateY(0)' : 'translateY(20px)',
           transition: 'opacity 0.7s ease, transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          padding: '2.4px 20px', // ← تم تصحيح padding
+          padding: '2.4px 20px',
           textShadow: '0 2px 10px rgba(0,0,0,0.3)',
           letterSpacing: '0.5px',
         }}

@@ -515,12 +515,33 @@ export default function Home() {
             </div>
 
             {/* الوضع المظلم */}
-            <button
-              onClick={toggleDarkMode}
-              className="h-8 w-8 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200"
-            >
-              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-            </button>
+            {/* الوضع المظلم */}
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <button
+        onClick={toggleDarkMode}
+        className="h-8 w-8 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200"
+      >
+        {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+      </button>
+    </TooltipTrigger>
+    <TooltipContent
+      side="bottom"
+      className="text-xs border"
+      style={{
+        backgroundColor: tooltipColors.bg,
+        color: tooltipColors.text,
+        borderColor: tooltipColors.border,
+        borderRadius: '6px',
+        padding: '4px 10px',
+        fontSize: '12px',
+      }}
+    >
+      <p>{isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع المظلم'}</p>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
           </div>
         </div>
       </header>

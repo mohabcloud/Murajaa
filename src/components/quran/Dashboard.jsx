@@ -118,54 +118,83 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onEditPlan(plan)}
-                    className="h-10 px-3 border-primary/20 hover:bg-primary/5"
+            {/* حاوية الأزرار (تعديل وحذف) مع محاذاة في المنتصف */}
+            <div className="flex items-center gap-2">
+              {/* أيقونة التعديل */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEditPlan(plan)}
+                      className="h-10 w-10 p-0 border-primary/20 hover:bg-primary/5 flex items-center justify-center"
+                    >
+                      <Pencil className="w-4 h-4 shrink-0" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="text-xs border"
+                    style={{
+                      backgroundColor: tooltipColors.bg,
+                      color: tooltipColors.text,
+                      borderColor: tooltipColors.border,
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                    }}
                   >
-                    <Pencil className="w-4 h-4 ml-1 shrink-0" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  className="text-xs border"
-                  style={{
-                    backgroundColor: tooltipColors.bg,
-                    color: tooltipColors.text,
-                    borderColor: tooltipColors.border,
-                    borderRadius: '6px',
-                    padding: '4px 10px',
-                    fontSize: '12px',
-                  }}
-                >
-                  <p>تعديل الخطة</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                    <p>تعديل الخطة</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-destructive border-destructive/20 hover:bg-destructive/5 h-10">
-                  <Trash2 className="w-4 h-4 ml-1 shrink-0" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent dir="rtl">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>حذف "{plan.name}"</AlertDialogTitle>
-                  <AlertDialogDescription>هل أنت متأكد من حذف هذه الخطة؟ سيتم فقدان جميع بيانات التقدم.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex gap-2 sm:gap-2">
-                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onDeletePlan(plan.id)} className="bg-destructive hover:bg-destructive/90">
-                    حذف
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              {/* أيقونة الحذف */}
+              <AlertDialog>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-10 w-10 p-0 text-destructive border-destructive/20 hover:bg-destructive/5 flex items-center justify-center"
+                        >
+                          <Trash2 className="w-4 h-4 shrink-0" />
+                        </Button>
+                      </AlertDialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="text-xs border"
+                      style={{
+                        backgroundColor: tooltipColors.bg,
+                        color: tooltipColors.text,
+                        borderColor: tooltipColors.border,
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <p>حذف الخطة</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <AlertDialogContent dir="rtl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>حذف "{plan.name}"</AlertDialogTitle>
+                    <AlertDialogDescription>هل أنت متأكد من حذف هذه الخطة؟ سيتم فقدان جميع بيانات التقدم.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="flex gap-2 sm:gap-2">
+                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onDeletePlan(plan.id)} className="bg-destructive hover:bg-destructive/90">
+                      حذف
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
 
           <p className="text-muted-foreground mt-2 text-sm flex items-center gap-2 flex-wrap">

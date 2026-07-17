@@ -9,7 +9,7 @@
 /* === الطبقة الأساسية (Base Layer) === */
 @layer base {
     :root {
-        /* الألوان الأساسية */
+        /* الألوان الأساسية - الوضع الفاتح */
         --background: 40 30% 97%;
         --foreground: 200 25% 15%;
         --card: 40 25% 99%;
@@ -36,7 +36,7 @@
         --chart-5: 160 30% 50%;
         --radius: 0.75rem;
         
-        /* ✅ الخط الوحيد للتطبيق: Noto Sans Arabic */
+        /* الخطوط */
         --font-heading: 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif;
         --font-body: 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif;
         --font-display: 'Noto Sans Arabic', ui-sans-serif, system-ui, sans-serif;
@@ -53,30 +53,49 @@
     }
 
     .dark {
+        /* ✅ أساس التطبيق (خلفية رمادية غامقة دافئة مائلة للخضرة) */
         --background: 180 8% 6%;
         --foreground: 40 15% 90%;
+        
+        /* ✅ البطاقات (أفتح بفرق 3% عشان تبان) */
         --card: 180 8% 9%;
         --card-foreground: 40 15% 90%;
-        --popover: 222.2 84% 4.9%;
-        --popover-foreground: 210 40% 98%;
+        
+        /* ✅ القوائم المنسدلة والبوب أوفر (نفس لون الخلفية تماماً للتناسق) */
+        --popover: 180 8% 6%;        /* تم التعديل: نفس الـ background */
+        --popover-foreground: 40 15% 90%; /* تم التعديل: نفس الـ foreground */
+        
+        /* ✅ الألوان الأساسية */
         --primary: 160 35% 42%;
         --primary-foreground: 0 0% 100%;
+        
+        /* ✅ العناصر الثانوية (أفتح قليلاً للتباين) */
         --secondary: 180 8% 14%;
         --secondary-foreground: 40 12% 85%;
+        
+        /* ✅ العناصر الصامتة */
         --muted: 180 8% 14%;
         --muted-foreground: 40 8% 58%;
+        
+        /* ✅ الألوان المميزة (ذهبي/نحاسي) */
         --accent: 35 45% 48%;
         --accent-foreground: 0 0% 100%;
+        
+        /* ✅ ألوان التحذير والحدود */
         --destructive: 0 45% 35%;
         --destructive-foreground: 0 0% 98%;
         --border: 180 8% 18%;
         --input: 180 8% 18%;
         --ring: 160 35% 42%;
+        
+        /* ✅ ألوان الرسوم البيانية */
         --chart-1: 220 70% 50%;
         --chart-2: 160 60% 45%;
         --chart-3: 30 80% 55%;
         --chart-4: 280 65% 60%;
         --chart-5: 340 75% 55%;
+        
+        /* ✅ ألوان الـ Sidebar */
         --sidebar-background: 240 5.9% 10%;
         --sidebar-foreground: 240 4.8% 95.9%;
         --sidebar-primary: 224.3 76.3% 48%;

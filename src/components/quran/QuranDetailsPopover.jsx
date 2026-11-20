@@ -1,146 +1,136 @@
 // src/components/quran/QuranDetailsPopover.jsx
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import { Info, BookOpen } from "lucide-react";
-import { getVersesBetween, getPageRange, getQuranData } from "@/lib/quranData";
-import { toArabicNumbers } from "@/lib/quranPlanEngine";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { getQuranData, getSurahList } from "@/lib/quranData";
+import { smartQuranDisplay, versesToPages, toArabicNumbers } from "@/lib/quranPlanEngine";
 
-export default function QuranDetailsPopover({ verses, startPage = 1, className = "" }) {
-  const [open, setOpen] = useState(false);
+// ✅ إزالة الإزاحة السفلية لتتوسط أيقونة Info النص تماماً في جميع المواضع
+export const INFO_ICON_TRIGGER_CLASSES =
+  "inline-flex items-center justify-center w-4 h-4 text-muted-foreground " +
+  "transition-colors duration-150 cursor-pointer shrink-0 select-none " +
+  "[@media(hover:hover)]:hover:text-primary " +
+  "data-[state=open]:text-primary " +
+  "focus:outline-none focus-visible:outline-none [-webkit-tap-highlight-color:transparent]";
+
+export default function QuranDetailsPopover({ verses = 0, startPage = 1 }) {
+  const details = useMemo(() => {
+    const quranData = getQuranData();
+    const surahList = quranData ? getSurahList() : [];
+    const safeStart = Math.max(1, Math.min(604, startPage || 1));
+    const totalPages = verses > 0 ? Math.max(1, versesToPages(verses, safeStart)) : 0;
+    const safeEnd = totalPages > 0 ? Math.min(604, safeStart + totalPages - 1) : safeStart;
+
+    const hizbCount = totalPages > 0 ? Math.max(1, Math.round((totalPages / 604) * 60)) : 0;
+    const rubCount = totalPages > 0 ? Math.max(1, Math.round((totalPages / 604) * 240)) : 0;
+
+    const surahsInRange = totalPages > 0
+      ? surahList.filter((s) => s.endPage >= safeStart && s.startPage <= safeEnd)
+      : [];
+
+    const startJuz = quranData?.pageMap?.[safeStart]?.juzu || 1;
+    const endJuz = quranData?.pageMap?.[safeEnd]?.juzu || 1;
+
+    return {
+      verses,
+      totalPages,
+      juzDisplay: smartQuranDisplay(verses, safeStart),
+      hizbCount,
+      rubCount,
+      surahsInRange,
+      startJuz,
+      endJuz,
+      safeStart,
+      safeEnd,
+    };
+  }, [verses, startPage]);
+
   if (!verses || verses <= 0) return null;
 
-  const endPageExact = findEndPage(verses, startPage);
-  const pagesCovered = Math.max(0, endPageExact - startPage + 1);
-  const exactVerses = getVersesBetween(startPage, endPageExact);
-
-  const startRange = getPageRange(startPage);
-  const endRange = getPageRange(endPageExact);
-
-  const juzCount = Math.floor(pagesCovered / 20);
-  const remainingPages = pagesCovered % 20;
-
-  const surahsInRange = getSurahsInRange(startPage, endPageExact);
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover>
       <PopoverTrigger asChild>
         <button
-          className="inline-flex items-center justify-center"
-          title="تفاصيل إضافية"
+          type="button"
+          aria-label="تفاصيل النطاق"
+          className={INFO_ICON_TRIGGER_CLASSES}
         >
-          <Info className="w-4 h-4 stroke-[1.5]" style={{ color: 'hsl(var(--muted-foreground))' }} />
+          <Info className="w-4 h-4 stroke-[1.75]" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-4" align="start" side="bottom" dir="rtl">
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/40">
-            <BookOpen className="w-4 h-4 text-primary" />
-            <span className="font-semibold text-foreground">تفاصيل النطاق</span>
-          </div>
+      <PopoverContent side="bottom" align="center" className="w-72 p-3.5 rounded-2xl text-xs" dir="rtl">
+        <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-border/50">
+          <BookOpen className="w-4 h-4 text-primary shrink-0" />
+          <span className="font-bold text-sm text-foreground">تفاصيل النطاق</span>
+        </div>
 
-          <div className="flex justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-muted-foreground">الآيات</span>
-            <span className="font-semibold text-foreground">{toArabicNumbers(exactVerses)}</span>
+            <span className="font-bold text-foreground">{toArabicNumbers(details.verses)}</span>
           </div>
-          <div className="flex justify-between gap-4">
+          <div className="flex items-center justify-between">
             <span className="text-muted-foreground">الصفحات</span>
-            <span className="font-semibold text-foreground">{toArabicNumbers(pagesCovered)}</span>
+            <span className="font-bold text-foreground">{toArabicNumbers(details.totalPages)}</span>
           </div>
 
-          {juzCount >= 1 && (
-            <>
-              <div className="border-t border-border/40 pt-2 mt-2" />
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">الأجزاء</span>
-                <span className="font-semibold text-foreground">
-                  {remainingPages > 0
-                    ? `${toArabicNumbers(juzCount)} أجزاء و ${toArabicNumbers(remainingPages)} صفحات`
-                    : `${toArabicNumbers(juzCount)} أجزاء`}
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">الأحزاب</span>
-                <span className="font-semibold text-foreground">{toArabicNumbers(juzCount * 2)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">الأرباع</span>
-                <span className="font-semibold text-foreground">{toArabicNumbers(juzCount * 8)}</span>
-              </div>
-            </>
-          )}
+          <div className="border-t border-border/40 my-1.5" />
 
-          {surahsInRange.length > 0 && (
-            <>
-              <div className="border-t border-border/40 pt-2 mt-2" />
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">عدد السور</span>
-                <span className="font-semibold text-foreground">{toArabicNumbers(surahsInRange.length)}</span>
-              </div>
-              <div className="text-xs text-muted-foreground pt-1">
-                {surahsInRange.slice(0, 8).map((s, i) => (
-                  <span key={i} className="inline-block bg-muted/40 rounded-md px-2 py-0.5 ml-1 mb-1">
-                    {s}
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">الأجزاء</span>
+            <span className="font-bold text-foreground">{details.juzDisplay}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">الأحزاب</span>
+            <span className="font-bold text-foreground">{toArabicNumbers(details.hizbCount)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">الأرباع</span>
+            <span className="font-bold text-foreground">{toArabicNumbers(details.rubCount)}</span>
+          </div>
+
+          <div className="border-t border-border/40 my-1.5" />
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-muted-foreground">عدد السور</span>
+              <span className="font-bold text-foreground">{toArabicNumbers(details.surahsInRange.length)}</span>
+            </div>
+            {details.surahsInRange.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {details.surahsInRange.slice(0, 8).map((s) => (
+                  <span
+                    key={s.id}
+                    className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium text-[11px]"
+                  >
+                    {s.name}
                   </span>
                 ))}
-                {surahsInRange.length > 8 && <span className="text-muted-foreground">...وغيرها</span>}
+                {details.surahsInRange.length > 8 && (
+                  <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px]">
+                    ...وغيرها
+                  </span>
+                )}
               </div>
-            </>
-          )}
+            )}
+          </div>
 
-          <div className="border-t border-border/40 pt-2 mt-2" />
-          <div className="flex justify-between gap-4">
+          <div className="border-t border-border/40 my-1.5" />
+
+          <div className="flex items-center justify-between">
             <span className="text-muted-foreground">من (جزء/صفحة)</span>
             <span className="font-semibold text-foreground">
-              {startRange
-                ? `ج${toArabicNumbers(startRange.juzu)} · ص${toArabicNumbers(startPage)}`
-                : `ص${toArabicNumbers(startPage)}`}
+              ج{toArabicNumbers(details.startJuz)} · ص{toArabicNumbers(details.safeStart)}
             </span>
           </div>
-          <div className="flex justify-between gap-4">
+          <div className="flex items-center justify-between">
             <span className="text-muted-foreground">إلى (جزء/صفحة)</span>
             <span className="font-semibold text-foreground">
-              {endRange
-                ? `ج${toArabicNumbers(endRange.juzu)} · ص${toArabicNumbers(endPageExact)}`
-                : `ص${toArabicNumbers(endPageExact)}`}
+              ج{toArabicNumbers(details.endJuz)} · ص{toArabicNumbers(details.safeEnd)}
             </span>
           </div>
         </div>
       </PopoverContent>
     </Popover>
   );
-}
-
-function findEndPage(verses, startPage) {
-  if (verses <= 0) return startPage;
-
-  const d = getQuranData();
-  if (!d) return Math.min(604, startPage + Math.ceil(verses / 10) - 1);
-
-  let remaining = verses;
-  let currentPage = Math.max(1, Math.min(604, startPage));
-
-  while (remaining > 0 && currentPage <= 604) {
-    const vc = d.pageMap[currentPage]?.verseCount || 10;
-    remaining -= vc;
-    currentPage++;
-  }
-  return Math.min(604, currentPage - 1);
-}
-
-function getSurahsInRange(startPage, endPage) {
-  const d = getQuranData();
-  if (!d) return [];
-
-  const surahList = d.surahList || [];
-  const surahs = new Set();
-
-  for (const surah of surahList) {
-    const sStart = surah.startPage || 1;
-    const sEnd = surah.endPage || 604;
-    if (sStart <= endPage && sEnd >= startPage) {
-      surahs.add(surah.name);
-    }
-  }
-
-  return Array.from(surahs);
 }

@@ -1,5 +1,5 @@
 // src/components/SplashScreen.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 
 const SplashScreen = ({ onFinish }) => {
   const [stage, setStage] = useState(0);
@@ -42,33 +42,21 @@ const SplashScreen = ({ onFinish }) => {
   const titleSize = iconSize * 0.25;
   const subtitleSize = titleSize * 0.5;
 
-  const generateStars = () => {
-    const stars = [];
+  // ✅ تثبيت مواقع النجوم بـ useMemo حتى لا تتغير عند انتقال مراحل الحركة (stage)
+  const stars = useMemo(() => {
+    const items = [];
     const count = 20 + Math.floor(Math.random() * 10);
     for (let i = 0; i < count; i++) {
-      const top = 5 + Math.random() * 90;
-      const left = 5 + Math.random() * 90;
-      const size = 1.5 + Math.random() * 3;
-      const opacityStar = 0.08 + Math.random() * 0.12;
-      stars.push(
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            top: `${top}%`,
-            left: `${left}%`,
-            width: `${size}px`,
-            height: `${size}px`,
-            borderRadius: '50%',
-            backgroundColor: '#caae61',
-            opacity: opacityStar,
-            pointerEvents: 'none',
-          }}
-        />
-      );
+      items.push({
+        id: i,
+        top: 5 + Math.random() * 90,
+        left: 5 + Math.random() * 90,
+        size: 1.5 + Math.random() * 3,
+        opacity: 0.08 + Math.random() * 0.12,
+      });
     }
-    return stars;
-  };
+    return items;
+  }, []);
 
   return (
     <div
@@ -123,7 +111,22 @@ const SplashScreen = ({ onFinish }) => {
           pointerEvents: 'none',
         }}
       >
-        {generateStars()}
+        {stars.map((s) => (
+          <div
+            key={s.id}
+            style={{
+              position: 'absolute',
+              top: `${s.top}%`,
+              left: `${s.left}%`,
+              width: `${s.size}px`,
+              height: `${s.size}px`,
+              borderRadius: '50%',
+              backgroundColor: '#caae61',
+              opacity: s.opacity,
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
       </div>
 
       {/* حاوية التوهج والأيقونة */}
@@ -221,7 +224,7 @@ const SplashScreen = ({ onFinish }) => {
         مُراجِع
       </h1>
 
-      {/* ✅ النص الفرعي بخط حسب الجهاز */}
+      {/* ✅ النص الفرعي المحدث ليشمل الحفظ والمراجعة */}
       <p
         style={{
           fontFamily: splashFont,
@@ -237,7 +240,7 @@ const SplashScreen = ({ onFinish }) => {
           letterSpacing: '0.5px',
         }}
       >
-        إدارة مراجعة القرآن
+        إدارة حفظ ومراجعة القرآن
       </p>
     </div>
   );

@@ -101,7 +101,8 @@ export default function Home() {
   };
 
   const handleManualSync = async () => {
-    if (!driveConnected) {
+    if (!driveConnected || !checkSignedIn()) {
+      setDriveConnected(false);
       showCustomToast('warning', 'غير متصل بـ Drive', 'يرجى ربط حساب Google أولاً.');
       return;
     }
@@ -116,6 +117,8 @@ export default function Home() {
         showCustomToast('success', 'تمت المزامنة', 'تم رفع بياناتك المحلية إلى السحابة.');
       }
     } catch (error) {
+      // ✅ تحديث حالة السحابة في الواجهة إذا انتهت صلاحية الجلسة (401)
+      setDriveConnected(checkSignedIn());
       showCustomToast('error', 'فشلت المزامنة', error.message || 'حدث خطأ');
     } finally {
       setSyncing(false);
@@ -133,7 +136,11 @@ export default function Home() {
             await syncFromDrive();
             reloadPlans();
           } catch (syncError) {
-            console.warn('⚠️ Auto-sync failed:', syncError);
+            // ✅ مزامنة حالة السحابة إذا تبين أن الرمز منتهي الصلاحية
+            setDriveConnected(checkSignedIn());
+            if (!syncError?.isAuthExpired) {
+              console.warn('⚠️ Auto-sync failed:', syncError);
+            }
             reloadPlans();
           }
         }
@@ -168,6 +175,7 @@ export default function Home() {
           showCustomToast('success', 'تم الربط', 'تم رفع بياناتك المحلية إلى السحابة.');
         }
       } catch (syncError) {
+        setDriveConnected(checkSignedIn());
         console.error('⚠️ Sync error:', syncError);
         reloadPlans();
         showCustomToast('warning', 'تم الربط لكن فشلت المزامنة', 'يمكنك المحاولة يدوياً باستخدام زر المزامنة.');
@@ -372,7 +380,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      {/* ✅ شريط علوي متجاوب ونظيف للهاتف والكمبيوتر بدون التفاف نصوص أو تكدّس أيقونات */}
       <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border/50">
         <div className="max-w-7xl mx-auto px-3.5 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           {/* الشعار والعنوان */}
@@ -392,7 +399,7 @@ export default function Home() {
 
           {/* أزرار الأدوات */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* 1. عرض سطح المكتب والأجهزة اللوحية (sm فأكبر): جميع الأزرار ظاهرة */}
+            {/* 1. عرض سطح المكتب والأجهزة اللوحية (sm فأكبر) */}
             <div className="hidden sm:flex items-center gap-1 border-l border-border/40 pl-2">
               <TooltipProvider>
                 <Tooltip>
@@ -460,13 +467,14 @@ export default function Home() {
               </TooltipProvider>
             </div>
 
-            {/* 2. عرض الهاتف (< sm): زرا السحابة والثيم + قائمة منسدلة منظمة للنسخ الاحتياطي والمزامنة */}
+            {/* 2. عرض الهاتف (< sm) */}
             <div className="flex sm:hidden items-center gap-1">
               <button
+                type="button"
                 onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
                 disabled={driveLoading}
                 aria-label={driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}
-                className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200 disabled:opacity-50"
+                className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200 disabled:opacity-50 focus:outline-none"
               >
                 {driveLoading || syncing ? (
                   <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -478,9 +486,10 @@ export default function Home() {
               </button>
 
               <button
+                type="button"
                 onClick={toggleDarkMode}
                 aria-label={isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع المظلم'}
-                className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200"
+                className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200 focus:outline-none"
               >
                 {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
               </button>
@@ -494,14 +503,21 @@ export default function Home() {
               />
               <DropdownMenu dir="rtl">
                 <DropdownMenuTrigger asChild>
+                  {/* ✅ إزالة التركيز قبل فتح القائمة لمنع تحذير aria-hidden في المتصفح */}
                   <button
+                    type="button"
+                    onPointerDown={(e) => e.currentTarget.blur()}
                     aria-label="خيارات النسخ الاحتياطي والمزامنة"
-                    className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200"
+                    className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200 focus:outline-none"
                   >
                     <MoreVertical className="w-4 h-4 text-foreground" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 p-1.5 rounded-2xl">
+                <DropdownMenuContent
+                  align="end"
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                  className="w-52 p-1.5 rounded-2xl"
+                >
                   <DropdownMenuItem
                     onClick={handleManualSync}
                     disabled={!driveConnected || syncing}

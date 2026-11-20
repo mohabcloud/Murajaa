@@ -102,8 +102,8 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   ) : (
                     <BookOpen className="w-4 h-4 text-primary shrink-0" />
                   )}
-                  <span className="font-bold text-foreground text-sm max-w-[180px] truncate">{plan.name || "بدون اسم"}</span>
-                  <span className="text-[11px] bg-primary/15 text-primary border border-primary/25 font-semibold px-2.5 py-0.5 rounded-full">
+                  <span className="font-bold text-foreground text-sm max-w-[180px] sm:max-w-[240px] truncate pe-1 leading-normal">{plan.name || "بدون اسم"}</span>
+                  <span className="text-[11px] bg-primary/15 text-primary border border-primary/25 font-semibold px-2.5 py-0.5 rounded-full leading-normal">
                     {labels.planTypeName}
                   </span>
                   <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -125,13 +125,12 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                           : "focus:bg-primary/15 focus:text-foreground"
                       }`}
                     >
-                      <span className="truncate flex-1 text-right font-medium text-foreground">
+                      <span className="truncate flex-1 text-right font-medium text-foreground pe-1 leading-normal">
                         {p.name}
                       </span>
 
-                      {/* ✅ وسم نوع الخطة: شفاف ومتناغم ويتكيف مع الهايلايت بدون طبقة معتمة */}
                       <span
-                        className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border shrink-0 transition-colors ${
+                        className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border shrink-0 leading-normal transition-colors ${
                           pType === "memorization"
                             ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 group-focus:bg-amber-500/20"
                             : "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/25 group-focus:bg-teal-500/20"
@@ -140,9 +139,8 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                         {pLabels.planTypeName}
                       </span>
 
-                      {/* ✅ وسم "نشط": تباين عالٍ (خلفية بلون الثيم + نص متباين) يظل واضحاً تماماً مع الهايلايت */}
                       {isActive && (
-                        <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2.5 py-0.5 rounded-full shrink-0 shadow-xs">
+                        <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2.5 py-0.5 rounded-full shrink-0 leading-normal shadow-xs">
                           نشط
                         </span>
                       )}

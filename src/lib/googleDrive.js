@@ -5,6 +5,7 @@ const CLIENT_ID =
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const FILE_NAME = 'plans.json';
 const PLANS_KEY = 'quran_review_plans_v2';
+const TOKEN_KEY = 'google_drive_token';
 
 let gapiInited = false;
 let gisInited = false;
@@ -24,6 +25,40 @@ function normalizePlanItem(plan) {
   };
 }
 
+// ✅ مسح الجلسة المنتهية الصلاحية بأمان
+function clearExpiredSession() {
+  isSignedIn = false;
+  if (window.gapi?.client) {
+    try {
+      window.gapi.client.setToken('');
+    } catch (e) {
+      // تجاهل أي خطأ أثناء تفريغ الرمز
+    }
+  }
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// ✅ التحقق من صلاحية الرمز المخزن زمنياً قبل إرسال أي طلب للسحابة
+function getValidStoredToken() {
+  const savedToken = localStorage.getItem(TOKEN_KEY);
+  if (!savedToken) return null;
+  try {
+    const parsed = JSON.parse(savedToken);
+    if (!parsed || !parsed.access_token) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    if (parsed.expires_at && Date.now() >= parsed.expires_at) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return parsed;
+  } catch (e) {
+    localStorage.removeItem(TOKEN_KEY);
+    return null;
+  }
+}
+
 // 1. تحميل وتهيئة Google APIs (محمي ضد التكرار في StrictMode)
 export function initGoogleDrive() {
   if (typeof window === 'undefined') return Promise.resolve(false);
@@ -33,17 +68,12 @@ export function initGoogleDrive() {
   initPromise = new Promise((resolve, reject) => {
     const checkAllReady = () => {
       if (gapiInited && gisInited) {
-        const savedToken = localStorage.getItem('google_drive_token');
-        if (savedToken && window.gapi?.client) {
-          try {
-            const parsed = JSON.parse(savedToken);
-            if (parsed.access_token) {
-              window.gapi.client.setToken({ access_token: parsed.access_token });
-              isSignedIn = true;
-            }
-          } catch (e) {
-            localStorage.removeItem('google_drive_token');
-          }
+        const validToken = getValidStoredToken();
+        if (validToken && window.gapi?.client) {
+          window.gapi.client.setToken({ access_token: validToken.access_token });
+          isSignedIn = true;
+        } else {
+          isSignedIn = false;
         }
         resolve(true);
       }
@@ -114,6 +144,21 @@ export function initGoogleDrive() {
 // 2. تسجيل الدخول
 export function signInToDrive() {
   return new Promise(async (resolve, reject) => {
+    // ✅ تنبيه واضح عند محاولة الربط من عنوان IP محلي (مثل 192.168.x.x) الذي ترفضه سياسة Google OAuth
+    const host = window.location.hostname;
+    const isLanIp =
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
+
+    if (isLanIp) {
+      return reject(
+        new Error(
+          'سياسة Google تمنع تسجيل الدخول من عنوان الشبكة المحلية. افتح الرابط الرسمي https://murajaa.pages.dev لربط Google Drive.'
+        )
+      );
+    }
+
     try {
       await initGoogleDrive();
     } catch (err) {
@@ -128,12 +173,17 @@ export function signInToDrive() {
       if (resp.error !== undefined) {
         return reject(resp);
       }
+      const expiresInSec = Number(resp.expires_in) || 3500;
+      const tokenPayload = {
+        ...resp,
+        expires_at: Date.now() + Math.max(60, expiresInSec - 60) * 1000,
+      };
       isSignedIn = true;
-      localStorage.setItem('google_drive_token', JSON.stringify(resp));
-      resolve(resp);
+      localStorage.setItem(TOKEN_KEY, JSON.stringify(tokenPayload));
+      resolve(tokenPayload);
     };
 
-    if (window.gapi?.client?.getToken() === null) {
+    if (!getValidStoredToken() || window.gapi?.client?.getToken() === null) {
       tokenClient.requestAccessToken({ prompt: 'consent' });
     } else {
       tokenClient.requestAccessToken({ prompt: '' });
@@ -145,35 +195,48 @@ export function signInToDrive() {
 export function signOutFromDrive() {
   return new Promise((resolve) => {
     const token = window.gapi?.client?.getToken();
-    if (token !== null && window.google?.accounts?.oauth2) {
+    if (token !== null && token?.access_token && window.google?.accounts?.oauth2) {
       window.google.accounts.oauth2.revoke(token.access_token, () => {
-        window.gapi.client.setToken('');
-        isSignedIn = false;
-        localStorage.removeItem('google_drive_token');
+        clearExpiredSession();
         resolve();
       });
     } else {
-      isSignedIn = false;
-      localStorage.removeItem('google_drive_token');
+      clearExpiredSession();
       resolve();
     }
   });
 }
 
 export function checkSignedIn() {
-  return isSignedIn && !!window.gapi?.client?.getToken();
+  if (!isSignedIn || !window.gapi?.client?.getToken()) return false;
+  if (!getValidStoredToken()) {
+    clearExpiredSession();
+    return false;
+  }
+  return true;
 }
 
-// 4. البحث عن ملف الخطط في appDataFolder
+// 4. البحث عن ملف الخطط في appDataFolder (مع معالجة 401 عند انتهاء صلاحية الجلسة)
 async function findPlansFile() {
-  const response = await window.gapi.client.drive.files.list({
-    spaces: 'appDataFolder',
-    q: `name = '${FILE_NAME}' and trashed = false`,
-    fields: 'files(id, name, modifiedTime)',
-    pageSize: 10,
-  });
-  const files = response.result.files;
-  return files && files.length > 0 ? files[0].id : null;
+  try {
+    const response = await window.gapi.client.drive.files.list({
+      spaces: 'appDataFolder',
+      q: `name = '${FILE_NAME}' and trashed = false`,
+      fields: 'files(id, name, modifiedTime)',
+      pageSize: 10,
+    });
+    const files = response.result.files;
+    return files && files.length > 0 ? files[0].id : null;
+  } catch (err) {
+    const status = err?.status || err?.result?.error?.code;
+    if (status === 401) {
+      clearExpiredSession();
+      const authError = new Error('انتهت صلاحية جلسة Google Drive. يرجى إعادة الربط.');
+      authError.isAuthExpired = true;
+      throw authError;
+    }
+    throw err;
+  }
 }
 
 // 5. رفع الخطط إلى Google Drive
@@ -211,8 +274,10 @@ export async function savePlansToDrive(plans) {
 
   if (!res.ok) {
     if (res.status === 401) {
-      isSignedIn = false;
-      localStorage.removeItem('google_drive_token');
+      clearExpiredSession();
+      const authError = new Error('انتهت صلاحية جلسة Google Drive. يرجى إعادة الربط.');
+      authError.isAuthExpired = true;
+      throw authError;
     }
     throw new Error('فشل رفع الملف إلى Google Drive');
   }
@@ -233,8 +298,10 @@ export async function loadPlansFromDrive() {
 
   if (!res.ok) {
     if (res.status === 401) {
-      isSignedIn = false;
-      localStorage.removeItem('google_drive_token');
+      clearExpiredSession();
+      const authError = new Error('انتهت صلاحية جلسة Google Drive. يرجى إعادة الربط.');
+      authError.isAuthExpired = true;
+      throw authError;
     }
     throw new Error('فشل قراءة الملف من Google Drive');
   }

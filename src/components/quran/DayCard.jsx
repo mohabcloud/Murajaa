@@ -49,7 +49,7 @@ export default function DayCard({ day, isToday, onRecord, planType = "review" })
     );
   }
 
-  // ✅ 2. يوم التثبيت / الربط والتجميع (بطاقة مستقلة ومميزة بصرياً)
+  // 2. يوم التثبيت / الربط والتجميع (بطاقة مستقلة ومميزة بصرياً)
   if (day.isReviewDay) {
     const config = statusConfig[day.status] || statusConfig.pending;
     const recordedAmount = day.consolidationVerses || day.completedVerses || 0;
@@ -105,7 +105,7 @@ export default function DayCard({ day, isToday, onRecord, planType = "review" })
           )}
 
           {day.note && (
-            <div className="text-[11px] text-accent font-medium mt-1 bg-accent/10 rounded-lg py-1 px-2 truncate">
+            <div className="text-[11px] text-accent font-medium mt-1 bg-accent/10 rounded-lg py-1 px-2 truncate pe-2 leading-normal">
               {day.note}
             </div>
           )}
@@ -180,7 +180,7 @@ export default function DayCard({ day, isToday, onRecord, planType = "review" })
           </div>
         )}
         {day.targetQuarterName && (
-          <div className="text-[11px] text-primary font-semibold mt-1 bg-primary/10 rounded-lg py-0.5 px-2 inline-block leading-relaxed max-w-full truncate">
+          <div className="text-[11px] text-primary font-semibold mt-1 bg-primary/10 rounded-lg py-0.5 px-2 inline-block leading-normal max-w-full truncate pe-2">
             {day.targetQuarterName}
           </div>
         )}

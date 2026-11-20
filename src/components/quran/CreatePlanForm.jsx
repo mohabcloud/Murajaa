@@ -13,7 +13,7 @@ import {
 import {
   getVersesBetween, getQuranData, getSurahList, getSurahVersesCount,
 } from "@/lib/quranData";
-import QuranDetailsPopover from "@/components/quran/QuranDetailsPopover";
+import QuranDetailsPopover, { INFO_ICON_TRIGGER_CLASSES } from "@/components/quran/QuranDetailsPopover";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
@@ -23,13 +23,13 @@ import {
 import { ArabicDatePicker } from "@/components/ui/arabic-date-picker";
 
 const SELECT_TRIGGER_CLASSES =
-  "w-full h-10 rounded-xl border-input px-3 text-right leading-none text-base flex items-center gap-2 " +
+  "w-full h-10 rounded-xl border-input px-3 text-right leading-normal text-base flex items-center gap-2 " +
   "text-foreground transition-colors duration-150 " +
   "hover:border-primary " +
   "data-[state=open]:border-primary";
 
 const SURAH_PICKER_CLASSES =
-  "w-full h-10 px-2 sm:px-3 text-sm truncate rounded-xl border border-input bg-transparent " +
+  "w-full h-10 px-2.5 sm:px-3 text-sm rounded-xl border border-input bg-transparent " +
   "flex items-center justify-between gap-2 " +
   "text-base font-normal text-foreground " +
   "transition-colors duration-150 " +
@@ -83,7 +83,7 @@ const TextInput = ({ type = "text", value, onChange, placeholder, className, dir
       dir={dir}
       className="w-full bg-transparent border-0 p-0 outline-none text-foreground placeholder:text-muted-foreground group-hover:placeholder:text-foreground"
       style={{
-        fontSize: "16px", lineHeight: "24px", height: "24px",
+        fontSize: "16px", lineHeight: "1.5", height: "32px",
         padding: 0, margin: 0, boxSizing: "border-box", background: "transparent",
         textAlign: textAlign, color: "hsl(var(--foreground))",
         WebkitAppearance: "none", appearance: "none",
@@ -112,7 +112,7 @@ const ArabicNumberInput = ({ value, onChange, placeholder, className = "", textA
         onChange={handleChange} placeholder={placeholder}
         className={`w-full bg-transparent border-0 p-0 outline-none text-foreground placeholder:text-muted-foreground group-hover:placeholder:text-foreground ${className}`}
         style={{
-          fontSize: "16px", lineHeight: "24px", height: "24px",
+          fontSize: "16px", lineHeight: "1.5", height: "32px",
           padding: 0, margin: 0, boxSizing: "border-box", background: "transparent",
           textAlign: textAlign, color: "hsl(var(--foreground))",
           WebkitAppearance: "none", appearance: "none",
@@ -195,7 +195,7 @@ export default function CreatePlanForm({
   const [startSurahAyah, setStartSurahAyah] = useState(1);
   const [startAyahNum, setStartAyahNum] = useState(1);
   const [endSurahAyah, setEndSurahAyah] = useState(114);
-  const [endAyahNum, setEndAyahNum] = useState(1);
+  const [endAyahNum, setEndAyahNum] = useState(() => getSurahVersesCount(114) || 6);
 
   const [openStartSurahAyah, setOpenStartSurahAyah] = useState(false);
   const [openEndSurahAyah, setOpenEndSurahAyah] = useState(false);
@@ -232,7 +232,7 @@ export default function CreatePlanForm({
 
   useEffect(() => {
     const max = getMaxAyahInSurah(endSurahAyah);
-    setEndAyahNum((prev) => Math.min(Math.max(1, prev), max || 1));
+    setEndAyahNum(max || 1);
   }, [endSurahAyah, getMaxAyahInSurah]);
 
   useEffect(() => {
@@ -363,9 +363,6 @@ export default function CreatePlanForm({
 
   const handleSelectPlanType = (type) => {
     setPlanType(type);
-    if (!isEditing && type === "memorization") {
-      setVacationEnabled(true);
-    }
   };
 
   const handlePreview = () => {
@@ -451,7 +448,7 @@ export default function CreatePlanForm({
             className={SURAH_PICKER_CLASSES}
             dir="rtl"
           >
-            <span className="truncate flex-1 text-right leading-none font-normal">
+            <span className="truncate flex-1 text-right leading-normal pe-1.5 font-normal">
               {selectedSurah ? `${toArabic(selectedSurah.id)} - ${selectedSurah.name}` : placeholder}
             </span>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50 stroke-[2]" />
@@ -478,7 +475,7 @@ export default function CreatePlanForm({
                 filtered.map((surah) => (
                   <div
                     key={surah.id}
-                    className="px-3 py-2 rounded-xl cursor-pointer text-sm text-right font-normal transition-colors hover:bg-muted hover:text-foreground"
+                    className="px-3 py-2 rounded-xl cursor-pointer text-sm leading-normal text-right font-normal transition-colors hover:bg-primary/15 hover:text-primary"
                     onClick={() => { onChange(surah.id); setOpen(false); setSearch(""); }}
                   >
                     {toArabic(surah.id)} - {surah.name}
@@ -512,48 +509,48 @@ export default function CreatePlanForm({
         </p>
       </div>
 
-      <div className="bg-card rounded-2xl border border-border/60 p-6 md:p-8 space-y-6">
+      <div className="bg-card rounded-2xl border border-border/60 p-5 sm:p-8 space-y-6">
         {/* اختيار نوع الخطة */}
         <div>
           <Label className="text-sm text-muted-foreground mb-2.5 block">نوع الخطة</Label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <button
               type="button"
               onClick={() => handleSelectPlanType("review")}
-              className={`p-3.5 rounded-2xl border text-right transition-all duration-200 flex items-center gap-3 ${
+              className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all duration-200 flex items-center gap-2.5 sm:gap-3 min-w-0 ${
                 planType === "review"
                   ? "bg-primary/10 border-primary text-foreground shadow-sm"
                   : "bg-background border-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${
                 planType === "review" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}>
                 <BookOpen className="w-4 h-4" />
               </div>
-              <div className="min-w-0">
-                <p className="font-bold text-sm leading-tight">خطة مراجعة</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">مراجعة المحفوظ السابق</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-xs sm:text-sm leading-normal whitespace-nowrap">خطة مراجعة</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate pe-1">مراجعة المحفوظ</p>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => handleSelectPlanType("memorization")}
-              className={`p-3.5 rounded-2xl border text-right transition-all duration-200 flex items-center gap-3 ${
+              className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all duration-200 flex items-center gap-2.5 sm:gap-3 min-w-0 ${
                 planType === "memorization"
                   ? "bg-primary/10 border-primary text-foreground shadow-sm"
                   : "bg-background border-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${
                 planType === "memorization" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}>
                 <BookmarkCheck className="w-4 h-4" />
               </div>
-              <div className="min-w-0">
-                <p className="font-bold text-sm leading-tight">خطة حفظ</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">حفظ جديد مع التثبيت</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-xs sm:text-sm leading-normal whitespace-nowrap">خطة حفظ</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate pe-1">حفظ جديد وتثبيت</p>
               </div>
             </button>
           </div>
@@ -729,25 +726,30 @@ export default function CreatePlanForm({
           )}
 
           {rangeType === "ayah" && (
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              <div className="min-w-0">
                 <Label className="text-sm text-muted-foreground mb-1.5 block">من آية</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <SurahPicker value={startSurahAyah} onChange={setStartSurahAyah} open={openStartSurahAyah} setOpen={setOpenStartSurahAyah} surahList={surahList} placeholder="السورة" />
-                  <ArabicNumberInput value={startAyahNum} onChange={(val) => setStartAyahNum(Math.max(1, val || 1))} placeholder="رقم الآية" textAlign="center" />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2 min-w-0">
+                    <SurahPicker value={startSurahAyah} onChange={setStartSurahAyah} open={openStartSurahAyah} setOpen={setOpenStartSurahAyah} surahList={surahList} placeholder="السورة" />
+                  </div>
+                  <ArabicNumberInput value={startAyahNum} onChange={(val) => setStartAyahNum(Math.max(1, val || 1))} placeholder="الآية" textAlign="center" />
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-sm text-muted-foreground mb-1.5 block">إلى آية</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <SurahPicker value={endSurahAyah} onChange={setEndSurahAyah} open={openEndSurahAyah} setOpen={setOpenEndSurahAyah} surahList={surahList} placeholder="السورة" />
-                  <ArabicNumberInput value={endAyahNum} onChange={(val) => setEndAyahNum(Math.max(1, val || 1))} placeholder="رقم الآية" textAlign="center" />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2 min-w-0">
+                    <SurahPicker value={endSurahAyah} onChange={setEndSurahAyah} open={openEndSurahAyah} setOpen={setOpenEndSurahAyah} surahList={surahList} placeholder="السورة" />
+                  </div>
+                  <ArabicNumberInput value={endAyahNum} onChange={(val) => setEndAyahNum(Math.max(1, val || 1))} placeholder="الآية" textAlign="center" />
                 </div>
               </div>
             </div>
           )}
 
           <div className="text-center mt-3">
+            {/* ✅ مسافة موحدة (gap-1.5) مع زر w-4 h-4 */}
             <div className="flex items-center justify-center gap-1.5">
               <p className="text-sm font-bold text-foreground">{smartQuranDisplay(versesEstimate, formData.startPage)}</p>
               <QuranDetailsPopover verses={versesEstimate} startPage={formData.startPage} />
@@ -766,14 +768,14 @@ export default function CreatePlanForm({
             <Calendar className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
             <h3 className="font-semibold text-foreground">الفترة الزمنية</h3>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div>
               <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ البداية</Label>
               <MobileWrapper>
                 <ArabicDatePicker
                   value={formData.startDate}
                   onChange={(date) => setFormData((prev) => ({ ...prev, startDate: date }))}
-                  placeholder="اختر تاريخ البداية"
+                  placeholder="تاريخ البداية"
                   className="w-full"
                 />
               </MobileWrapper>
@@ -784,7 +786,7 @@ export default function CreatePlanForm({
                 <ArabicDatePicker
                   value={formData.endDate}
                   onChange={(date) => setFormData((prev) => ({ ...prev, endDate: date }))}
-                  placeholder="اختر تاريخ النهاية"
+                  placeholder="تاريخ النهاية"
                   className="w-full"
                 />
               </MobileWrapper>
@@ -794,26 +796,29 @@ export default function CreatePlanForm({
 
         <div className="border-t border-border/40" />
 
-        {/* ✅ أيام الإجازة الأسبوعية: توحيد التوسيط العمودي لأيقونة (i) على الهاتف والكمبيوتر */}
+        {/* أيام الإجازة الأسبوعية */}
         <div>
           <div className="flex items-center gap-2 mb-4">
             <Coffee className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
-            <h3 className="font-semibold text-foreground leading-none">أيام الإجازة الأسبوعية</h3>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="معلومات عن أيام الإجازة"
-                  className="inline-flex items-center justify-center w-5 h-5 rounded-full text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0"
-                >
-                  <Info className="w-4 h-4 stroke-[1.75] shrink-0" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent side="top" className="max-w-xs text-xs p-3" dir="rtl">
-                <p>أيام راحة تامة من {labels.workNoun}. يتم تطبيقها في كل أسابيع الخطة.</p>
-                <p className="mt-1 text-muted-foreground">ملاحظة: في نظام التناوب، هذه الأيام تبقى راحة حتى في أيام {labels.consolidationNoun}.</p>
-              </PopoverContent>
-            </Popover>
+            {/* ✅ نفس المسافة (gap-1.5) ونفس تلوين أيقونة Info نفسها عند الفتح */}
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-semibold text-foreground leading-normal">أيام الإجازة الأسبوعية</h3>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="معلومات عن أيام الإجازة"
+                    className={INFO_ICON_TRIGGER_CLASSES}
+                  >
+                    <Info className="w-4 h-4 stroke-[1.75]" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" className="max-w-xs text-xs p-3" dir="rtl">
+                  <p>أيام راحة تامة من {labels.workNoun}. يتم تطبيقها في كل أسابيع الخطة.</p>
+                  <p className="mt-1 text-muted-foreground">ملاحظة: في نظام التناوب، هذه الأيام تبقى راحة حتى في أيام {labels.consolidationNoun}.</p>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {DAYS_OF_WEEK.map((day) => (
@@ -840,17 +845,18 @@ export default function CreatePlanForm({
         <div className="border-t border-border/40 pt-6">
           <div className="flex items-center gap-3 mb-1.5">
             <Layers className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
-            <h3 className="font-semibold text-foreground text-sm md:text-base leading-none">نظام التناوب</h3>
+            <h3 className="font-semibold text-foreground text-sm md:text-base leading-normal">نظام التناوب</h3>
             <button
               type="button"
               onClick={() => setVacationEnabled(!vacationEnabled)}
-              className={`relative w-9 h-5 rounded-full transition-colors duration-300 cursor-pointer shrink-0 ${vacationEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+              className={`relative w-9 h-5 rounded-full transition-colors duration-300 cursor-pointer shrink-0 select-none focus:outline-none [-webkit-tap-highlight-color:transparent] ${vacationEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}
             >
               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${vacationEnabled ? "left-0.5 translate-x-4" : "left-0.5"}`} />
             </button>
           </div>
+          {/* ✅ نفس المسافة (gap-1.5) ونفس تلوين أيقونة Info نفسها عند الفتح */}
           <div className="flex items-center gap-1.5">
-            <span className="text-sm text-muted-foreground leading-none">
+            <span className="text-sm text-muted-foreground leading-normal">
               ({labels.workNounNew} / {labels.consolidationNoun})
             </span>
             <Popover>
@@ -858,9 +864,9 @@ export default function CreatePlanForm({
                 <button
                   type="button"
                   aria-label="معلومات عن نظام التناوب"
-                  className="inline-flex items-center justify-center w-5 h-5 rounded-full text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0"
+                  className={INFO_ICON_TRIGGER_CLASSES}
                 >
-                  <Info className="w-4 h-4 stroke-[1.75] shrink-0" />
+                  <Info className="w-4 h-4 stroke-[1.75]" />
                 </button>
               </PopoverTrigger>
               <PopoverContent side="top" className="max-w-xs text-xs p-3" dir="rtl">

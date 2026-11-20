@@ -13,7 +13,6 @@ import {
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ===== دوال التحويل اليدوي للأرقام =====
 const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
 const toArabicManual = (num: number): string => {
   return num.toString().split('').map(d => arabicDigits[parseInt(d)]).join('');
@@ -35,7 +34,6 @@ export function ArabicDatePicker({
   disabled = false,
 }: ArabicDatePickerProps) {
   const [open, setOpen] = React.useState(false);
-  const [isActive, setIsActive] = React.useState(false);
 
   const selectedDate = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined;
 
@@ -47,51 +45,49 @@ export function ArabicDatePicker({
       onChange("");
     }
     setOpen(false);
-    setIsActive(false);
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      setIsActive(false);
-    }
-  };
-
-  const formatDateWithArabic = (date: Date): string => {
-    const day = toArabicManual(date.getDate());
-    const month = format(date, "MMMM", { locale: arSA });
-    const year = toArabicManual(date.getFullYear());
-    return `${day} ${month} ${year}`;
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           disabled={disabled}
-          onFocus={() => setIsActive(true)}
-          onBlur={() => setIsActive(false)}
           className={cn(
-            "w-full min-h-[40px] px-3 rounded-xl border text-base leading-none",
+            // ✅ كلاسات ثابتة، بدون isActive — يعتمد على open فقط
+            "group w-full min-h-[40px] px-3 rounded-xl text-base leading-none",
             "flex items-center gap-2 text-right",
-            "transition-all duration-300",
-            isActive ? "bg-primary/10 border-primary/50" : "bg-transparent border-input",
-            !value && "text-muted-foreground",
+            "border border-input bg-transparent",
+            "transition-colors duration-150",
+            "hover:border-primary",
+            "focus-visible:border-primary",
+            "data-[state=open]:border-primary",
+            !value && "text-muted-foreground group-hover:text-foreground",
             disabled && "opacity-50 cursor-not-allowed",
             className
           )}
           style={{
             minHeight: '40px',
-            height: 'auto',
-            paddingTop: '4px',
-            paddingBottom: '4px',
+            height: '40px',
+            paddingTop: '0',
+            paddingBottom: '0',
           }}
         >
           <CalendarIcon className="h-4 w-4 shrink-0" />
-          <span className="flex-1 truncate" style={{ lineHeight: '1.3' }}>
+          <span className="flex-1 truncate" style={{ lineHeight: '24px', fontSize: '15px' }}>
             {value && selectedDate ? (
-              <span>{formatDateWithArabic(selectedDate)}</span>
+              <span
+                dir="rtl"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
+              >
+                <span>{toArabicManual(selectedDate.getDate())}</span>
+                <span>{format(selectedDate, "MMMM", { locale: arSA })}</span>
+                <span>{toArabicManual(selectedDate.getFullYear())}</span>
+              </span>
             ) : (
               <span>{placeholder}</span>
             )}
@@ -106,12 +102,36 @@ export function ArabicDatePicker({
             selected={selectedDate}
             onSelect={handleSelect}
             locale={arSA}
+            formatters={{
+              formatDay: (date) => toArabicManual(date.getDate()),
+              formatWeekdayName: (date) => format(date, "EEEEEE", { locale: arSA }),
+            }}
             components={{
+              CaptionLabel: ({ displayMonth }: { displayMonth: Date; id?: string }) => (
+                <span
+                  dir="rtl"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                  }}
+                >
+                  <span>{format(displayMonth, "MMMM", { locale: arSA })}</span>
+                  <span>{toArabicManual(displayMonth.getFullYear())}</span>
+                </span>
+              ),
               IconLeft: () => <ChevronRight className="h-4 w-4" />,
               IconRight: () => <ChevronLeft className="h-4 w-4" />,
             }}
             styles={{
-              caption: { fontSize: "1rem", fontWeight: "bold" },
+              caption: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingBottom: '0.5rem',
+              },
               head_cell: { fontWeight: "bold" },
             }}
             modifiersClassNames={{

@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Toaster } from "sonner";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
@@ -8,7 +8,6 @@ import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 import Home from '@/pages/Home';
 import SplashScreen from '@/components/SplashScreen';
-import RangeTest from '@/pages/RangeTest';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -27,7 +26,6 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/range-test" element={<RangeTest />} />
           <Route path="*" element={<PageNotFound />} />
         </Routes>
         <Toaster
@@ -35,7 +33,7 @@ function App() {
           richColors
           duration={4000}
           dir="rtl"
-          closeButton={false}
+          closeButton={true}
           toastOptions={{
             className: "murajaa-toast",
             style: {

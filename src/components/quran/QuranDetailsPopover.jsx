@@ -1,7 +1,8 @@
 // src/components/quran/QuranDetailsPopover.jsx
 import React, { useState } from "react";
 import { Info, BookOpen } from "lucide-react";
-import { getVersesBetween, getPageRange, getQuranData, getSurahName, getSurahList } from "@/lib/quranData";
+import { getVersesBetween, getPageRange, getQuranData } from "@/lib/quranData";
+import { toArabicNumbers } from "@/lib/quranPlanEngine";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export default function QuranDetailsPopover({ verses, startPage = 1, className = "" }) {
@@ -9,7 +10,7 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
   if (!verses || verses <= 0) return null;
 
   const endPageExact = findEndPage(verses, startPage);
-  const pagesCovered = Math.max(0, endPageExact - startPage);
+  const pagesCovered = Math.max(0, endPageExact - startPage + 1);
   const exactVerses = getVersesBetween(startPage, endPageExact);
 
   const startRange = getPageRange(startPage);
@@ -39,11 +40,11 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
 
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">الآيات</span>
-            <span className="font-semibold text-foreground">{exactVerses}</span>
+            <span className="font-semibold text-foreground">{toArabicNumbers(exactVerses)}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">الصفحات</span>
-            <span className="font-semibold text-foreground">{pagesCovered}</span>
+            <span className="font-semibold text-foreground">{toArabicNumbers(pagesCovered)}</span>
           </div>
 
           {juzCount >= 1 && (
@@ -52,20 +53,18 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">الأجزاء</span>
                 <span className="font-semibold text-foreground">
-                  {juzCount >= 1
-                    ? remainingPages > 0
-                      ? `${juzCount} أجزاء و ${remainingPages} صفحات`
-                      : `${juzCount} أجزاء`
-                    : "أقل من جزء"}
+                  {remainingPages > 0
+                    ? `${toArabicNumbers(juzCount)} أجزاء و ${toArabicNumbers(remainingPages)} صفحات`
+                    : `${toArabicNumbers(juzCount)} أجزاء`}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">الأحزاب</span>
-                <span className="font-semibold text-foreground">{juzCount * 2}</span>
+                <span className="font-semibold text-foreground">{toArabicNumbers(juzCount * 2)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">الأرباع</span>
-                <span className="font-semibold text-foreground">{juzCount * 8}</span>
+                <span className="font-semibold text-foreground">{toArabicNumbers(juzCount * 8)}</span>
               </div>
             </>
           )}
@@ -75,7 +74,7 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
               <div className="border-t border-border/40 pt-2 mt-2" />
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">عدد السور</span>
-                <span className="font-semibold text-foreground">{surahsInRange.length}</span>
+                <span className="font-semibold text-foreground">{toArabicNumbers(surahsInRange.length)}</span>
               </div>
               <div className="text-xs text-muted-foreground pt-1">
                 {surahsInRange.slice(0, 8).map((s, i) => (
@@ -92,13 +91,17 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">من (جزء/صفحة)</span>
             <span className="font-semibold text-foreground">
-              {startRange ? `ج${startRange.juzu} · ص${startPage}` : `ص${startPage}`}
+              {startRange
+                ? `ج${toArabicNumbers(startRange.juzu)} · ص${toArabicNumbers(startPage)}`
+                : `ص${toArabicNumbers(startPage)}`}
             </span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">إلى (جزء/صفحة)</span>
             <span className="font-semibold text-foreground">
-              {endRange ? `ج${endRange.juzu} · ص${endPageExact}` : `ص${endPageExact}`}
+              {endRange
+                ? `ج${toArabicNumbers(endRange.juzu)} · ص${toArabicNumbers(endPageExact)}`
+                : `ص${toArabicNumbers(endPageExact)}`}
             </span>
           </div>
         </div>
@@ -107,21 +110,21 @@ export default function QuranDetailsPopover({ verses, startPage = 1, className =
   );
 }
 
-// ===== دوال مساعدة =====
 function findEndPage(verses, startPage) {
+  if (verses <= 0) return startPage;
+
   const d = getQuranData();
-  if (!d) return Math.min(604, startPage + Math.ceil(verses / 10));
+  if (!d) return Math.min(604, startPage + Math.ceil(verses / 10) - 1);
 
   let remaining = verses;
-  let currentPage = startPage;
+  let currentPage = Math.max(1, Math.min(604, startPage));
 
   while (remaining > 0 && currentPage <= 604) {
     const vc = d.pageMap[currentPage]?.verseCount || 10;
     remaining -= vc;
     currentPage++;
   }
-
-  return Math.min(604, currentPage);
+  return Math.min(604, currentPage - 1);
 }
 
 function getSurahsInRange(startPage, endPage) {

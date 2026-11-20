@@ -3,158 +3,200 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const outputDir = path.join(process.env.USERPROFILE || process.env.HOME, 'Downloads');
+const homeDir = process.env.USERPROFILE || process.env.HOME;
 
-// ⚙️ عدد الأجزاء المطلوبة لـ src_components فقط
-const COMPONENTS_PARTS = 4;
+// ✅ تم التعديل: الكشف التلقائي عن مجلد "التنزيلات" العربي في لينكس أولاً، ثم "Downloads"
+function resolveOutputDir() {
+  const candidates = [
+    path.join(homeDir, 'التنزيلات'),
+    path.join(homeDir, 'Downloads'),
+    __dirname,
+  ];
+  return candidates.find((dir) => fs.existsSync(dir)) || __dirname;
+}
 
-// تعريف المجموعات - كل الملفات ستكون كاملة، ما عدا src_components سيتم تقسيمها
-const bundles = {
-    'root_files.txt': ['root_files'],
-    'src_root.txt': ['src_root'],
-    'src_api.txt': ['src/api'],
-    'src_components.txt': ['src/components'], // هذا الملف فقط سيتم تقسيمه
-    'src_hooks.txt': ['src/hooks'],
-    'src_lib.txt': ['src/lib'],
-    'src_pages.txt': ['src/pages'],
-    'src_utils.txt': ['src/utils'],
-    'public_files.txt': ['public'], // ✅ إضافة مجلد public
-};
+const outputDir = resolveOutputDir();
 
-// دالة لتقسيم المحتوى إلى عدد محدد من الأجزاء
+// ✅ تم التعديل: ملف واحد متكامل يناسب نافذة سياق Gemini الضخمة دون قصّ الملفات
+const NUM_PARTS = 1;
+const MIN_SPLIT_SIZE = 40000; // 40KB
+
+// 📋 قائمة الملفات المطلوبة فقط (بالترتيب حسب الأهمية)
+const FILES_TO_BUNDLE = [
+  // === 1. ملفات الإعداد والنشر ===
+  'package.json',
+  'vite.config.js',
+  'tailwind.config.js', // ✅ مضاف: إعدادات الألوان والخطوط والأنيميشن
+  'postcss.config.js',  // ✅ مضاف: إعدادات PostCSS
+  'index.html',
+  '_routes.json',
+  'manifest.json',
+
+  // === 2. نقطة الدخول والستايل ===
+  'src/main.jsx',
+  'src/App.jsx',
+  'src/index.css',
+
+  // === 3. منطق التطبيق (قلب المشروع) ===
+  'src/lib/utils.js',
+  'src/lib/quranData.js',
+  'src/lib/quranPlanEngine.js',
+  'src/lib/planStorage.js',
+  'src/lib/googleDrive.js',
+  'src/lib/PageNotFound.jsx', // ✅ مضاف: صفحة 404
+
+  // === 4. الهوكس والصفحات والمكونات الرئيسية ===
+  'src/hooks/use-mobile.jsx', // ✅ مضاف: هوك كشف حجم الشاشة
+  'src/pages/Home.jsx',
+  'src/components/ScrollToTop.jsx', // ✅ مضاف: إعادة التمرير لأعلى
+  'src/components/quran/CreatePlanForm.jsx',
+  'src/components/quran/Dashboard.jsx',
+  'src/components/quran/StatCard.jsx',
+  'src/components/quran/ScheduleView.jsx',
+  'src/components/quran/DayCard.jsx',
+  'src/components/quran/FlexibleEntryPanel.jsx',
+  'src/components/quran/ProgressRing.jsx',
+  'src/components/quran/QuranDetailsPopover.jsx',
+  'src/components/QuranInteractivePicker.jsx',
+  'src/components/SplashScreen.jsx',
+
+  // === 5. مكونات shadcn المستخدمة فعلاً ===
+  'src/components/ui/arabic-date-picker.tsx',
+  'src/components/ui/calendar.jsx', // ✅ مضاف: يعتمد عليه ArabicDatePicker
+  'src/components/ui/button.jsx',
+  'src/components/ui/input.jsx',
+  'src/components/ui/label.jsx',
+  'src/components/ui/popover.jsx',
+  'src/components/ui/select.jsx',
+  'src/components/ui/sheet.jsx', // ✅ مضاف: القوائم الجانبية على الهاتف
+  'src/components/ui/tooltip.jsx',
+  'src/components/ui/dialog.jsx',
+  'src/components/ui/alert-dialog.jsx',
+  'src/components/ui/dropdown-menu.jsx',
+];
+
+// ✅ تم التحديث: رأس توضيحي يعكس حالة المشروع الحالية (نوفمبر 2026)
+const HEADER = `# ============================================================
+# 📦 حزمة ملفات مشروع "مُراجِع" - تطبيق مراجعة القرآن
+# ============================================================
+#
+# 📌 السياق:
+# - تطبيق ويب عربي RTL لإدارة مراجعة القرآن، اسمه "مُراجِع" (مُصمم للتحويل لتطبيق هاتف لاحقاً).
+# - التقنيات: React 18.2 + Vite 6.1 + Tailwind CSS 3.4 + shadcn/ui + Radix UI + date-fns (ar-SA).
+# - الاستضافة: Cloudflare Pages على murajaa.pages.dev.
+# - التخزين: Google Drive API v3 (drive.appdata) + localStorage كـ cache.
+# - quran_complete_data.json (~2.8MB) موجود ويُستخدم في quranData.js، ولا يُرسل.
+#
+# ✅ التعديلات الأخيرة المنجزة:
+# - إصلاح الأخطاء الحرجة في محرك الخطط والمزامنة (Round 1 & 2 & 3).
+# - توحيد نظام الألوان الدلالي (primary / accent / destructive / muted) وتحويل جميع الأرقام للعربية.
+# - توحيد سلوك hover/focus في جميع الحقول ومنتقي التاريخ والسور.
+#
+# ⚠️ الأولوية الحالية:
+# - حل مشكلة الوصول للتطبيق من الهاتف عبر الشبكة المحلية على Linux Lite (منفذ 5173).
+# - المراجعة الشاملة والبدء في الميزات الجديدة.
+#
+# 🖥️ بيئة التطوير: Linux Lite، npm run dev -- --host.
+# ============================================================
+
+`;
+
+// ============================================================
+// أدوات مساعدة
+// ============================================================
+
 function splitContentIntoParts(content, numParts) {
-    if (numParts <= 1) return [{ index: 1, content }];
-    
-    const lines = content.split('\n');
-    const totalLines = lines.length;
-    const linesPerPart = Math.ceil(totalLines / numParts);
-    const parts = [];
-    
-    for (let i = 0; i < numParts; i++) {
-        const start = i * linesPerPart;
-        const end = Math.min(start + linesPerPart, totalLines);
-        const partContent = lines.slice(start, end).join('\n');
-        if (partContent.length > 0) {
-            parts.push({ index: i + 1, content: partContent });
-        }
+  if (numParts <= 1) return [{ index: 1, content }];
+
+  const lines = content.split('\n');
+  const totalLines = lines.length;
+  const linesPerPart = Math.ceil(totalLines / numParts);
+  const parts = [];
+
+  for (let i = 0; i < numParts; i++) {
+    const start = i * linesPerPart;
+    const end = Math.min(start + linesPerPart, totalLines);
+    const partContent = lines.slice(start, end).join('\n');
+    if (partContent.trim().length > 0) {
+      parts.push({ index: i + 1, content: partContent });
     }
-    
-    return parts;
+  }
+
+  return parts;
 }
 
-// دالة لكتابة ملف (عادي أو مقسم)
-function writeBundledFile(baseName, content, forceSplit = false, numParts = 4) {
+function writeBundledFile(baseName, content, forceSplit = false) {
+  // حذف أي ملفات قديمة بنفس الاسم (بما في ذلك الأجزاء القديمة _part1..4)
+  const oldFiles = fs.readdirSync(outputDir).filter((f) => {
+    const baseWithoutExt = path.basename(baseName, '.txt');
+    return f === baseName || f.startsWith(`${baseWithoutExt}_part`);
+  });
+  oldFiles.forEach((f) => fs.unlinkSync(path.join(outputDir, f)));
+
+  // إذا كان صغيراً أو التقسيم معطلاً، اكتبه في ملف واحد مباشرة
+  if (!forceSplit || NUM_PARTS <= 1 || content.length < MIN_SPLIT_SIZE) {
     const fullPath = path.join(outputDir, baseName);
-    
-    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    fs.writeFileSync(fullPath, content);
+    console.log(`✅ ${baseName} (${(content.length / 1024).toFixed(1)} KB)`);
+    return;
+  }
 
-    // إذا كان الملف صغيراً ولا نريد تقسيمه، اكتبه مباشرة
-    if (!forceSplit || content.length < 10000) {
-        fs.writeFileSync(fullPath, content);
-        console.log(`✅ تم إنشاء: ${baseName} (${(content.length / 1024).toFixed(1)} KB)`);
-        return;
-    }
+  // تقسيم
+  console.log(`📦 ${baseName} (${(content.length / 1024).toFixed(1)} KB) → ${NUM_PARTS} أجزاء`);
+  const parts = splitContentIntoParts(content, NUM_PARTS);
 
-    // تقسيم الملف إلى العدد المطلوب من الأجزاء
-    console.log(`📦 ${baseName} (${(content.length / 1024).toFixed(1)} KB) جاري التقسيم إلى ${numParts} أجزاء...`);
-    const parts = splitContentIntoParts(content, numParts);
-    
-    parts.forEach((part) => {
-        const baseWithoutExt = path.basename(baseName, '.txt');
-        const partName = `${baseWithoutExt}_part${part.index}.txt`;
-        const partPath = path.join(outputDir, partName);
-        fs.writeFileSync(partPath, part.content);
-        console.log(`   ✅ تم إنشاء: ${partName} (${(part.content.length / 1024).toFixed(1)} KB)`);
-    });
+  parts.forEach((part) => {
+    const baseWithoutExt = path.basename(baseName, '.txt');
+    const partName = `${baseWithoutExt}_part${part.index}.txt`;
+    const partPath = path.join(outputDir, partName);
+    fs.writeFileSync(partPath, part.content);
+    console.log(`   ✅ ${partName} (${(part.content.length / 1024).toFixed(1)} KB)`);
+  });
 }
 
-// ==================== جمع الملفات ====================
+// ============================================================
+// التشغيل الرئيسي
+// ============================================================
 
-function getFiles(dir, fileList = []) {
-    try {
-        const files = fs.readdirSync(dir);
-        files.forEach(file => {
-            // استثناء المجلدات غير المرغوب فيها
-            if (['node_modules', '.git', 'dist', '.vscode', '.next', 'dev-dist', 'assets'].includes(file)) return;
-            // استثناء الملفات الكبيرة أو الثنائية
-            if (file === 'quran_complete_data.json') return;
-            if (file === 'oauth_client.json') return;
-            if (file === 'package-lock.json') return;
-            if (file === 'bundleProject.js') return;
-            if (file === 'getTree.js') return;
-            if (file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.svg') || file.endsWith('.ico')) return;
-            if (file.endsWith('.lock')) return;
-            if (file === '8080') return; // ملف بدون امتداد غير مرغوب
+console.log('📦 جاري جمع الملفات المحددة فقط...\n');
 
-            const filePath = path.join(dir, file);
-            const stat = fs.statSync(filePath);
-            if (stat.isDirectory()) {
-                // إذا كان المجلد هو public/assets، نتخطاه (الصور)
-                if (file === 'assets' && dir.endsWith('public')) return;
-                getFiles(filePath, fileList);
-            } else if (/\.(js|jsx|json|css|html|md|env|ts|tsx|txt|toml|xml)$/.test(file)) {
-                fileList.push({ path: filePath, name: file });
-            }
-        });
-    } catch (e) {
-        console.warn(`⚠️ مجلد غير موجود: ${dir}`);
-    }
-    return fileList;
+let fullContent = HEADER;
+const foundFiles = [];
+const missingFiles = [];
+
+FILES_TO_BUNDLE.forEach((relativePath) => {
+  const fullPath = path.join(__dirname, relativePath);
+
+  if (!fs.existsSync(fullPath)) {
+    missingFiles.push(relativePath);
+    return;
+  }
+
+  try {
+    const fileContent = fs.readFileSync(fullPath, 'utf-8');
+    fullContent += `\n\n--- FILE: /${relativePath} ---\n\n${fileContent}\n`;
+    foundFiles.push(relativePath);
+  } catch (err) {
+    console.error(`❌ خطأ في قراءة ${relativePath}:`, err.message);
+    missingFiles.push(relativePath);
+  }
+});
+
+// ملخص
+console.log(`\n✅ تم جمع ${foundFiles.length} ملف.`);
+if (missingFiles.length > 0) {
+  console.log(`\n⚠️ ملفات غير موجودة (تم تخطيها):`);
+  missingFiles.forEach((f) => console.log(`   - ${f}`));
 }
 
-console.log('📦 جاري تقسيم الكود إلى ملفات حسب المجلدات...');
+if (foundFiles.length === 0) {
+  console.error('\n❌ لا توجد ملفات لجمعها!');
+  process.exit(1);
+}
 
-// حذف الملفات القديمة
-Object.keys(bundles).forEach(name => {
-    const p = path.join(outputDir, name);
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-});
+// ✅ كتابة الملف النهائي في ملف واحد متكامل (false لتعطيل التقسيم)
+console.log('');
+writeBundledFile('murajaa_bundle.txt', fullContent, false);
 
-// جمع جميع الملفات
-const allFiles = getFiles(__dirname);
-
-// تصنيف الملفات
-Object.entries(bundles).forEach(([bundleName, folders]) => {
-    let content = '';
-    const isRootFiles = bundleName === 'root_files.txt';
-    const isSrcRoot = bundleName === 'src_root.txt';
-    const isComponents = bundleName === 'src_components.txt';
-
-    allFiles.forEach(fileObj => {
-        const relativePath = fileObj.path.replace(__dirname, '').replace(/\\/g, '/');
-        
-        if (isRootFiles) {
-            // ملفات الجذر (غير داخل src/ أو node_modules أو public)
-            if (!relativePath.startsWith('/src/') && !relativePath.startsWith('/node_modules') && !relativePath.startsWith('/public')) {
-                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
-            }
-        }
-        else if (isSrcRoot) {
-            if (relativePath.startsWith('/src/') && !relativePath.substring(5).includes('/')) {
-                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
-            }
-        }
-        else if (bundleName === 'public_files.txt') {
-            if (relativePath.startsWith('/public/') && !relativePath.startsWith('/public/assets/')) {
-                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
-            }
-        }
-        else {
-            if (folders.some(f => relativePath.startsWith(`/${f}`))) {
-                content += `\n\n--- FILE: ${relativePath} ---\n\n${fs.readFileSync(fileObj.path, 'utf-8')}`;
-            }
-        }
-    });
-
-    if (content) {
-        if (isComponents) {
-            writeBundledFile(bundleName, content, true, COMPONENTS_PARTS);
-        } else {
-            writeBundledFile(bundleName, content, false);
-        }
-    } else {
-        console.log(`⚠️ لا توجد ملفات في: ${bundleName}`);
-    }
-});
-
-console.log('🎉 تم الإنشاء بنجاح (تم تقسيم src_components فقط إلى 4 أجزاء)!');
+console.log(`\n🎉 تم بنجاح! الملف موجود في: ${outputDir}`);
+console.log(`📊 الحجم الإجمالي: ${(fullContent.length / 1024).toFixed(1)} KB`);

@@ -4,6 +4,11 @@ import path from 'path';
 
 export default defineConfig({
   base: '/',
+  // ✅ يتيح فتح التطبيق من الهاتف على نفس الشبكة بمجرد كتابة npm run dev
+  server: {
+    host: true,
+    port: 5173,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

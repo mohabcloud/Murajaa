@@ -215,24 +215,60 @@ function processRawData(raw) {
   return result;
 }
 
+// ✅ التحقق من صلاحية البيانات المُخزَّنة في الكاش
+function isCacheValid(data) {
+  return !!(
+    data &&
+    typeof data === 'object' &&
+    data.totalVerses != null &&
+    data.pageMap && typeof data.pageMap === 'object' && Object.keys(data.pageMap).length > 0 &&
+    Array.isArray(data.surahList) && data.surahList.length > 0 &&
+    data.pageTexts && typeof data.pageTexts === 'object'
+  );
+}
+
 export async function initQuranData() {
   if (_data) return _data;
   if (_loadingPromise) return _loadingPromise;
 
   _loadingPromise = (async () => {
+    // 1) محاولة التحميل من الكاش (كان مفقوداً تماماً في النسخة السابقة)
     try {
-      localStorage.removeItem(CACHE_KEY);
-      console.log("🧹 تم حذف الكاش القديم.");
-    } catch (e) {}
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        console.log("📦 محاولة تحميل بيانات المصحف من الكاش...");
+        const parsed = JSON.parse(cached);
+        if (isCacheValid(parsed)) {
+          _data = parsed;
+          console.log(`✅ تم التحميل من الكاش: ${_data.totalVerses} آية، ${_data.surahList.length} سورة.`);
+          return _data;
+        }
+        console.warn("⚠️ الكاش غير صالح، إعادة البناء من الملف...");
+      }
+    } catch (e) {
+      console.warn("⚠️ تعذّر قراءة الكاش (سنتابعه بالمعالجة):", e);
+    }
 
+    // 2) معالجة من الملف المحلي
     try {
       console.log("⏳ جاري معالجة بيانات المصحف...");
-      _data = processRawData(quranDataRaw);
+      const processed = processRawData(quranDataRaw);
+      _data = processed;
       console.log(`✅ تمت المعالجة بنجاح: ${_data.totalVerses} آية، ${_data.surahList.length} سورة.`);
-      localStorage.setItem(CACHE_KEY, JSON.stringify(_data));
+
+      // 3) حفظ في الكاش (best-effort — قد يفشل بسبب الـ quota)
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(_data));
+        console.log("💾 تم حفظ الكاش للاستخدام في المرات القادمة.");
+      } catch (cacheErr) {
+        console.warn("⚠️ تعذّر حفظ الكاش (قد يكون حجم البيانات أكبر من المتاح):", cacheErr?.message || cacheErr);
+      }
+
       return _data;
     } catch (e) {
       console.error("❌ فشل في معالجة الملف المحلي:", e);
+      _data = null;
+      _loadingPromise = null; // ✅ إعادة تعيين حتى يمكن إعادة المحاولة
       throw e;
     }
   })();

@@ -1,27 +1,17 @@
 import React, { useState, useMemo } from "react";
 import DayCard from "./DayCard";
 import { ChevronDown, ChevronUp, CalendarDays } from "lucide-react";
-import { getLocalToday } from "@/lib/quranPlanEngine";
+import { getLocalToday, parseLocal, toLocalDateStr, toArabicNumbers } from "@/lib/quranPlanEngine";
 
-export default function ScheduleView({ schedule, onRecordDay }) {
-  const [viewMode, setViewMode] = useState("default"); // "default" | "more"
+export default function ScheduleView({ schedule, onRecordDay, planType = "review" }) {
+  const [viewMode, setViewMode] = useState("default");
   const today = getLocalToday();
 
-  // تحديد الأيام المعروضة بناءً على وضع العرض
   const displayDays = useMemo(() => {
-    if (viewMode === "default") {
-      // عرض 5 أيام من اليوم (اليوم + 4 أيام قادمة)
-      const endDate = new Date(today);
-      endDate.setDate(endDate.getDate() + 4); // 5 أيام بما فيهم اليوم
-      const endStr = endDate.toISOString().split("T")[0];
-      return schedule.filter(day => day.date >= today && day.date <= endStr);
-    } else {
-      // عرض 14 يوم من اليوم (أسبوعين) - أو حتى نهاية الخطة إن كانت أقل
-      const endDate = new Date(today);
-      endDate.setDate(endDate.getDate() + 13); // 14 يوم بما فيهم اليوم
-      const endStr = endDate.toISOString().split("T")[0];
-      return schedule.filter(day => day.date >= today && day.date <= endStr);
-    }
+    const endDate = parseLocal(today);
+    endDate.setDate(endDate.getDate() + (viewMode === "default" ? 4 : 13));
+    const endStr = toLocalDateStr(endDate);
+    return schedule.filter(day => day.date >= today && day.date <= endStr);
   }, [schedule, today, viewMode]);
 
   const totalDays = schedule.length;
@@ -31,7 +21,6 @@ export default function ScheduleView({ schedule, onRecordDay }) {
     setViewMode(viewMode === "default" ? "more" : "default");
   };
 
-  // حساب عدد الأيام المتبقية بعد المعروض
   const remainingDays = totalDays - displayedCount;
 
   return (
@@ -66,6 +55,7 @@ export default function ScheduleView({ schedule, onRecordDay }) {
               day={day}
               isToday={day.date === today}
               onRecord={onRecordDay}
+              planType={planType}
             />
           ))}
         </div>
@@ -74,11 +64,11 @@ export default function ScheduleView({ schedule, onRecordDay }) {
       <div className="text-center mt-4">
         <p className="text-xs text-muted-foreground">
           {viewMode === "default"
-            ? `يُعرَض ${displayedCount} يوم (الأيام الخمسة القادمة)`
-            : `يُعرَض ${displayedCount} يوم (الأسبوعين القادمين)`}
+            ? `يُعرَض ${toArabicNumbers(displayedCount)} يوم (الأيام الخمسة القادمة)`
+            : `يُعرَض ${toArabicNumbers(displayedCount)} يوم (الأسبوعين القادمين)`}
           {remainingDays > 0 && (
             <span className="block mt-1">
-              باقي {remainingDays} يوم في الخطة
+              باقي {toArabicNumbers(remainingDays)} يوم في الخطة
             </span>
           )}
         </p>

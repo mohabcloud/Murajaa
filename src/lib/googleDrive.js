@@ -1,374 +1,311 @@
-/* eslint-disable no-undef */
-
-const CLIENT_ID = '97284826819-kl6ohtb6vnlofocg89p9oku69ag3i453.apps.googleusercontent.com';
-const API_KEY = 'AIzaSyDJdFgHrzBDsvxkzZ3mnpvgs7uZE6tmxGI';
-const TOKEN_STORAGE_KEY = 'google_drive_token';
-
-const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
+// src/lib/googleDrive.js
+const CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  "97284826819-kl6ohtb6vnlofocg89p9oku69ag3i453.apps.googleusercontent.com";
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const FILE_NAME = 'plans.json';
+const PLANS_KEY = 'quran_review_plans_v2';
 
-let tokenClient = null;
 let gapiInited = false;
 let gisInited = false;
+let tokenClient = null;
 let isSignedIn = false;
+let initPromise = null;
 
-// ===== حفظ واسترجاع التوكن =====
-const saveToken = (token) => {
-  if (token) {
-    localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(token));
-  } else {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-  }
-};
+// ✅ دالة مساعدة لتطبيع أي خطة قديمة أو مستوردة من Drive قبل الدمج
+function normalizePlanItem(plan) {
+  if (!plan || typeof plan !== 'object') return null;
+  return {
+    ...plan,
+    id: plan.id || `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    planType: plan.planType || 'review',
+    schedule: Array.isArray(plan.schedule) ? plan.schedule : [],
+    updatedAt: plan.updatedAt || plan.createdAt || '1970-01-01T00:00:00.000Z',
+  };
+}
 
-const loadToken = () => {
-  const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
+// 1. تحميل وتهيئة Google APIs (محمي ضد التكرار في StrictMode)
+export function initGoogleDrive() {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  if (gapiInited && gisInited) return Promise.resolve(true);
+  if (initPromise) return initPromise;
 
-// ===== التهيئة =====
-export const initGoogleDrive = () => {
-  return new Promise((resolve, reject) => {
-    const script1 = document.createElement('script');
-    script1.src = 'https://apis.google.com/js/api.js';
-    script1.onload = () => {
-      window.gapi.load('client', async () => {
-        try {
-          await window.gapi.client.init({
-            apiKey: API_KEY,
-            discoveryDocs: DISCOVERY_DOCS,
-          });
-          gapiInited = true;
-
-          const savedToken = loadToken();
-          if (savedToken) {
-            window.gapi.client.setToken(savedToken);
-            isSignedIn = true;
-            console.log('✅ Restored token from localStorage');
+  initPromise = new Promise((resolve, reject) => {
+    const checkAllReady = () => {
+      if (gapiInited && gisInited) {
+        const savedToken = localStorage.getItem('google_drive_token');
+        if (savedToken && window.gapi?.client) {
+          try {
+            const parsed = JSON.parse(savedToken);
+            if (parsed.access_token) {
+              window.gapi.client.setToken({ access_token: parsed.access_token });
+              isSignedIn = true;
+            }
+          } catch (e) {
+            localStorage.removeItem('google_drive_token');
           }
-
-          console.log('✅ Google API initialized');
-          checkReady(resolve, reject);
-        } catch (err) {
-          reject(err);
         }
-      });
+        resolve(true);
+      }
     };
-    script1.onerror = () => reject(new Error('Failed to load Google API'));
-    document.body.appendChild(script1);
 
-    const script2 = document.createElement('script');
-    script2.src = 'https://accounts.google.com/gsi/client';
-    script2.onload = () => {
-      tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '',
-      });
-      gisInited = true;
-      console.log('✅ GIS initialized');
-      checkReady(resolve, reject);
+    const loadGapi = () => {
+      if (window.gapi) {
+        window.gapi.load('client', async () => {
+          try {
+            await window.gapi.client.init({});
+            await window.gapi.client.load('drive', 'v3');
+            gapiInited = true;
+            checkAllReady();
+          } catch (err) {
+            initPromise = null;
+            reject(err);
+          }
+        });
+      }
     };
-    script2.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-    document.body.appendChild(script2);
-  });
-};
 
-const checkReady = (resolve, reject) => {
-  if (gapiInited && gisInited) {
-    const token = window.gapi.client.getToken();
-    if (token) {
-      isSignedIn = true;
-      saveToken(token);
+    const loadGis = () => {
+      if (window.google?.accounts?.oauth2) {
+        tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: '',
+        });
+        gisInited = true;
+        checkAllReady();
+      }
+    };
+
+    if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) {
+      const script1 = document.createElement('script');
+      script1.src = 'https://apis.google.com/js/api.js';
+      script1.async = true;
+      script1.defer = true;
+      script1.onload = loadGapi;
+      script1.onerror = () => {
+        initPromise = null;
+        reject(new Error('فشل تحميل Google API'));
+      };
+      document.body.appendChild(script1);
+    } else if (window.gapi) {
+      loadGapi();
     }
-    resolve(true);
-  }
-};
 
-// ===== تسجيل الدخول والخروج =====
-export const signInToDrive = () => {
-  return new Promise((resolve, reject) => {
+    if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
+      const script2 = document.createElement('script');
+      script2.src = 'https://accounts.google.com/gsi/client';
+      script2.async = true;
+      script2.defer = true;
+      script2.onload = loadGis;
+      script2.onerror = () => {
+        initPromise = null;
+        reject(new Error('فشل تحميل Google Identity'));
+      };
+      document.body.appendChild(script2);
+    } else if (window.google?.accounts?.oauth2) {
+      loadGis();
+    }
+  });
+
+  return initPromise;
+}
+
+// 2. تسجيل الدخول
+export function signInToDrive() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      await initGoogleDrive();
+    } catch (err) {
+      return reject(err);
+    }
+
     if (!tokenClient) {
-      reject(new Error('Google Drive not initialized'));
-      return;
+      return reject(new Error('Google Identity غير جاهز بعد.'));
     }
 
     tokenClient.callback = (resp) => {
-      if (resp.error) {
-        reject(resp.error);
-        return;
+      if (resp.error !== undefined) {
+        return reject(resp);
       }
-      window.gapi.client.setToken(resp);
       isSignedIn = true;
-      saveToken(resp);
-      console.log('✅ Signed in to Google Drive');
+      localStorage.setItem('google_drive_token', JSON.stringify(resp));
       resolve(resp);
     };
 
-    tokenClient.requestAccessToken({ prompt: 'consent' });
-  });
-};
-
-export const signOutFromDrive = () => {
-  const token = window.gapi.client.getToken();
-  if (token) {
-    window.google.accounts.oauth2.revoke(token.access_token, () => {
-      window.gapi.client.setToken(null);
-      isSignedIn = false;
-      saveToken(null);
-      console.log('✅ Signed out from Google Drive');
-    });
-  }
-};
-
-export const checkSignedIn = () => {
-  const token = window.gapi?.client?.getToken?.();
-  return token !== null && token !== undefined && isSignedIn;
-};
-
-// ===== دوال مساعدة =====
-export const listAllFiles = async () => {
-  try {
-    if (!checkSignedIn()) return null;
-    const response = await window.gapi.client.drive.files.list({
-      pageSize: 100,
-      fields: 'files(id, name, mimeType, parents)',
-      spaces: 'appDataFolder',
-    });
-    console.log('📂 All files in appDataFolder:', response.result.files);
-    return response.result.files;
-  } catch (error) {
-    console.error('❌ Error listing files:', error);
-    return null;
-  }
-};
-
-// ===== تحميل الخطط =====
-export const loadPlansFromDrive = async () => {
-  try {
-    if (!checkSignedIn()) {
-      console.warn('⚠️ Not signed in');
-      return null;
-    }
-
-    console.log('🔍 Searching for plans.json in appDataFolder...');
-    const response = await window.gapi.client.drive.files.list({
-      q: "name='plans.json' and trashed=false",
-      spaces: 'appDataFolder',
-      fields: 'files(id, name, createdTime, modifiedTime)',
-    });
-
-    const files = response.result.files;
-    if (files.length === 0) {
-      console.log('⚠️ No plans file found. Listing all files for debugging:');
-      await listAllFiles();
-      return null;
-    }
-
-    console.log(`📄 Found file: ${files[0].name} (ID: ${files[0].id})`);
-    const fileId = files[0].id;
-    const fileResponse = await window.gapi.client.drive.files.get({
-      fileId: fileId,
-      alt: 'media',
-    });
-
-    return JSON.parse(fileResponse.body);
-  } catch (error) {
-    if (error.status === 401 || error.status === 403) {
-      console.warn('⚠️ Auth error, clearing session');
-      window.gapi.client.setToken(null);
-      isSignedIn = false;
-      saveToken(null);
-      return null;
-    }
-    console.error('❌ Error loading plans from Drive:', error);
-    return null;
-  }
-};
-
-// ===== حفظ الخطط =====
-export const savePlansToDrive = async (plans) => {
-  try {
-    if (!checkSignedIn()) {
-      console.warn('⚠️ Not signed in, cannot save to Drive');
-      return false;
-    }
-
-    const token = window.gapi.client.getToken();
-    if (!token) throw new Error('No access token');
-
-    console.log(`💾 Saving ${plans.length} plans to Drive...`);
-    const content = JSON.stringify(plans, null, 2);
-
-    const listResponse = await window.gapi.client.drive.files.list({
-      q: "name='plans.json' and trashed=false",
-      spaces: 'appDataFolder',
-      fields: 'files(id)',
-    });
-    const existingFile = listResponse.result.files[0];
-
-    let url, method;
-    let metadata = { name: 'plans.json' };
-
-    if (existingFile) {
-      url = `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart`;
-      method = 'PATCH';
+    if (window.gapi?.client?.getToken() === null) {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
     } else {
-      url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-      method = 'POST';
-      metadata.parents = ['appDataFolder'];
+      tokenClient.requestAccessToken({ prompt: '' });
     }
+  });
+}
 
-    const formData = new FormData();
-    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    formData.append('file', new Blob([content], { type: 'application/json' }));
-
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        Authorization: `Bearer ${token.access_token}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Upload failed:', response.status, errorText);
-      if (response.status === 401 || response.status === 403) {
-        console.warn('⚠️ Auth error, clearing session');
-        window.gapi.client.setToken(null);
+// 3. تسجيل الخروج (تُعيد Promise بشكل متسق)
+export function signOutFromDrive() {
+  return new Promise((resolve) => {
+    const token = window.gapi?.client?.getToken();
+    if (token !== null && window.google?.accounts?.oauth2) {
+      window.google.accounts.oauth2.revoke(token.access_token, () => {
+        window.gapi.client.setToken('');
         isSignedIn = false;
-        saveToken(null);
-      }
-      return false;
-    }
-
-    const result = await response.json();
-    console.log(`✅ ${existingFile ? 'Updated' : 'Created'} file:`, result);
-
-    if (!existingFile && result.name !== 'plans.json') {
-      console.warn(`⚠️ File name is "${result.name}" instead of "plans.json". Renaming...`);
-      const renameResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${result.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: 'plans.json' }),
-        }
-      );
-      if (renameResponse.ok) {
-        console.log('✅ File renamed to plans.json');
-      } else {
-        console.warn('⚠️ Could not rename file');
-      }
-    }
-
-    return true;
-  } catch (error) {
-    console.error('❌ Error saving plans to Drive:', error);
-    return false;
-  }
-};
-
-// ===== ✅ دالة دمج الخطط =====
-const mergePlans = (localPlans, drivePlans) => {
-  // إنشاء خريطة للخطط المحلية (مفتاح = id)
-  const plansMap = new Map();
-  
-  // إضافة الخطط المحلية أولاً
-  localPlans.forEach(plan => {
-    plansMap.set(plan.id, { ...plan, _source: 'local' });
-  });
-  
-  // إضافة أو تحديث الخطط من Drive
-  drivePlans.forEach(plan => {
-    if (plansMap.has(plan.id)) {
-      // إذا كانت الخطة موجودة محلياً، نقارن التواريخ
-      const localPlan = plansMap.get(plan.id);
-      const localDate = new Date(localPlan.updatedAt || localPlan.createdAt || 0);
-      const driveDate = new Date(plan.updatedAt || plan.createdAt || 0);
-      
-      if (driveDate > localDate) {
-        // خطة Drive أحدث، نستبدلها
-        plansMap.set(plan.id, { ...plan, _source: 'drive' });
-        console.log(`🔄 Updated plan "${plan.name}" from Drive (newer)`);
-      } else {
-        // الخطة المحلية أحدث أو متساوية، نحتفظ بها
-        console.log(`🔄 Keeping local plan "${localPlan.name}" (newer or same)`);
-      }
+        localStorage.removeItem('google_drive_token');
+        resolve();
+      });
     } else {
-      // خطة جديدة من Drive
-      plansMap.set(plan.id, { ...plan, _source: 'drive' });
-      console.log(`➕ Added new plan "${plan.name}" from Drive`);
+      isSignedIn = false;
+      localStorage.removeItem('google_drive_token');
+      resolve();
     }
   });
-  
-  // تحويل الخريطة إلى مصفوفة وإزالة خاصية _source
-  const mergedPlans = Array.from(plansMap.values()).map(({ _source, ...plan }) => plan);
-  
-  console.log(`✅ Merged ${mergedPlans.length} plans (${localPlans.length} local + ${drivePlans.length} drive)`);
-  return mergedPlans;
-};
+}
 
-// ===== ✅ المزامنة مع دمج البيانات =====
-export const syncFromDrive = async () => {
-  try {
-    // 1. تحميل الخطط من Drive
-    const drivePlans = await loadPlansFromDrive();
-    
-    // 2. تحميل الخطط المحلية
-    const localPlans = JSON.parse(localStorage.getItem('quran_review_plans_v2') || '[]');
-    
-    // 3. إذا لم توجد خطط في Drive، نرفع المحلية إلى Drive
-    if (!drivePlans || drivePlans.length === 0) {
-      if (localPlans.length > 0) {
-        await savePlansToDrive(localPlans);
-        console.log('🔄 Uploaded local plans to Drive');
-        return localPlans;
-      }
-      console.log('⚠️ No plans found anywhere');
-      return [];
+export function checkSignedIn() {
+  return isSignedIn && !!window.gapi?.client?.getToken();
+}
+
+// 4. البحث عن ملف الخطط في appDataFolder
+async function findPlansFile() {
+  const response = await window.gapi.client.drive.files.list({
+    spaces: 'appDataFolder',
+    q: `name = '${FILE_NAME}' and trashed = false`,
+    fields: 'files(id, name, modifiedTime)',
+    pageSize: 10,
+  });
+  const files = response.result.files;
+  return files && files.length > 0 ? files[0].id : null;
+}
+
+// 5. رفع الخطط إلى Google Drive
+export async function savePlansToDrive(plans) {
+  if (!checkSignedIn()) return false;
+
+  const normalizedPlans = (Array.isArray(plans) ? plans : [])
+    .map(normalizePlanItem)
+    .filter(Boolean);
+
+  const fileContent = JSON.stringify(normalizedPlans, null, 2);
+  const file = new Blob([fileContent], { type: 'application/json' });
+  const fileId = await findPlansFile();
+
+  const token = window.gapi.client.getToken().access_token;
+  const metadata = {
+    name: FILE_NAME,
+    mimeType: 'application/json',
+    ...(fileId ? {} : { parents: ['appDataFolder'] }),
+  };
+
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', file);
+
+  const url = fileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+    : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+  const res = await fetch(url, {
+    method: fileId ? 'PATCH' : 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      isSignedIn = false;
+      localStorage.removeItem('google_drive_token');
     }
-    
-    // 4. دمج الخطط المحلية مع خطط Drive
-    const mergedPlans = mergePlans(localPlans, drivePlans);
-    
-    // 5. حفظ المدمج في localStorage
-    localStorage.setItem('quran_review_plans_v2', JSON.stringify(mergedPlans));
-    
-    // 6. رفع المدمج إلى Drive
-    await savePlansToDrive(mergedPlans);
-    console.log('🔄 Synced merged plans to Drive');
-    
-    return mergedPlans;
-  } catch (error) {
-    console.error('❌ Sync failed:', error);
+    throw new Error('فشل رفع الملف إلى Google Drive');
+  }
+  return true;
+}
+
+// 6. تحميل الخطط من Google Drive
+export async function loadPlansFromDrive() {
+  if (!checkSignedIn()) return null;
+
+  const fileId = await findPlansFile();
+  if (!fileId) return null;
+
+  const token = window.gapi.client.getToken().access_token;
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      isSignedIn = false;
+      localStorage.removeItem('google_drive_token');
+    }
+    throw new Error('فشل قراءة الملف من Google Drive');
+  }
+
+  const parsed = await res.json();
+  if (!Array.isArray(parsed)) return null;
+  return parsed.map(normalizePlanItem).filter(Boolean);
+}
+
+// ✅ 7. دمج الخطط المحلية والسحابية دون فقدان أي خطة قديمة أو حديثة
+export function mergePlans(localPlans, drivePlans) {
+  const localNormalized = (Array.isArray(localPlans) ? localPlans : []).map(normalizePlanItem).filter(Boolean);
+  const driveNormalized = (Array.isArray(drivePlans) ? drivePlans : []).map(normalizePlanItem).filter(Boolean);
+
+  if (driveNormalized.length === 0) return localNormalized;
+  if (localNormalized.length === 0) return driveNormalized;
+
+  const mergedMap = new Map();
+
+  for (const plan of localNormalized) {
+    mergedMap.set(plan.id, plan);
+  }
+
+  for (const drivePlan of driveNormalized) {
+    const existing = mergedMap.get(drivePlan.id);
+    if (!existing) {
+      mergedMap.set(drivePlan.id, drivePlan);
+    } else {
+      const localTime = new Date(existing.updatedAt || 0).getTime();
+      const driveTime = new Date(drivePlan.updatedAt || 0).getTime();
+      if (driveTime > localTime) {
+        mergedMap.set(drivePlan.id, drivePlan);
+      }
+    }
+  }
+
+  return Array.from(mergedMap.values());
+}
+
+// ✅ 8. المزامنة الكاملة (جلب السحابة + دمجها مع الخطط المحلية + حفظ النتيجة محلياً وعلى السحابة)
+export async function syncFromDrive() {
+  if (!checkSignedIn()) return null;
+
+  const drivePlans = await loadPlansFromDrive();
+  const localRaw = localStorage.getItem(PLANS_KEY);
+  let localPlans = [];
+  try {
+    localPlans = localRaw ? JSON.parse(localRaw) : [];
+  } catch (e) {
+    localPlans = [];
+  }
+
+  if (!drivePlans) {
+    if (localPlans.length > 0) {
+      await savePlansToDrive(localPlans);
+      return localPlans;
+    }
     return null;
   }
-};
 
-// ===== رفع البيانات المحلية إلى Drive =====
-export const uploadToDrive = async () => {
-  try {
-    const localPlans = JSON.parse(localStorage.getItem('quran_review_plans_v2') || '[]');
-    if (localPlans.length === 0) {
-      console.log('⚠️ No local data to upload');
-      return false;
-    }
-    const result = await savePlansToDrive(localPlans);
-    return result;
-  } catch (error) {
-    console.error('❌ Upload failed:', error);
-    return false;
-  }
-};
+  const merged = mergePlans(localPlans, drivePlans);
+  localStorage.setItem(PLANS_KEY, JSON.stringify(merged));
+
+  await savePlansToDrive(merged);
+  return merged;
+}
+
+// 9. رفع يدوي إجباري إلى Drive
+export async function uploadToDrive() {
+  if (!checkSignedIn()) return false;
+  const localRaw = localStorage.getItem(PLANS_KEY);
+  const localPlans = localRaw ? JSON.parse(localRaw) : [];
+  return await savePlansToDrive(localPlans);
+}

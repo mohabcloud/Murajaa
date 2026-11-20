@@ -1,54 +1,63 @@
 // src/pages/Home.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { loadAllPlans, saveAllPlans, savePlan, deletePlan, loadActivePlan, setActivePlanId } from "@/lib/planStorage";
+import { loadAllPlans, saveAllPlans, savePlan, deletePlan, loadActivePlan, setActivePlanId, mergeImportedPlans } from "@/lib/planStorage";
 import { initQuranData } from "@/lib/quranData";
+import { syncPlanSchedule, toArabicNumbers, getLocalToday } from "@/lib/quranPlanEngine";
 import CreatePlanForm from "@/components/quran/CreatePlanForm";
 import Dashboard from "@/components/quran/Dashboard";
-import { BookOpen, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff } from "lucide-react";
+import { BookOpen, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff, MoreVertical } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { initGoogleDrive, signInToDrive, signOutFromDrive, syncFromDrive, uploadToDrive, checkSignedIn } from "@/lib/googleDrive";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ===== دالة عرض Toast مخصصة =====
 const showCustomToast = (type, title, description) => {
-  const dismiss = () => toast.dismiss();
-
   const content = (
-    <div className="relative w-full pe-8">
-      <button
-        onClick={dismiss}
-        className="absolute top-0 end-0 w-7 h-7 rounded-full border border-border/50 bg-background/80 hover:bg-muted/50 flex items-center justify-center transition-colors z-10 shadow-sm"
-        style={{ insetInlineEnd: '-75px', transform: 'none' }}
-        aria-label="إغلاق"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-      <div className="ps-6">
-        <p className="font-semibold text-foreground">{title}</p>
-        {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
-      </div>
+    <div className="w-full text-right" dir="rtl">
+      <p className="font-semibold text-foreground">{title}</p>
+      {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
     </div>
   );
 
-  if (type === 'success') {
-    toast.success(content, { duration: 4000, className: "murajaa-toast" });
-  } else if (type === 'error') {
-    toast.error(content, { duration: 4000, className: "murajaa-toast" });
-  } else if (type === 'info') {
-    toast.info(content, { duration: 4000, className: "murajaa-toast" });
-  } else if (type === 'warning') {
-    toast.warning(content, { duration: 4000, className: "murajaa-toast" });
-  } else {
-    toast(content, { duration: 4000, className: "murajaa-toast" });
-  }
+  const opts = { duration: 4000, className: "murajaa-toast" };
+
+  if (type === 'success') toast.success(content, opts);
+  else if (type === 'error') toast.error(content, opts);
+  else if (type === 'info') toast.info(content, opts);
+  else if (type === 'warning') toast.warning(content, opts);
+  else toast(content, opts);
 };
 
-// ===== مكون Home الرئيسي =====
+// ✅ تطبيع ومزامنة جميع الخطط
+function normalizeAndSyncPlans(rawPlans) {
+  let anyChanged = false;
+  const syncedPlans = rawPlans.map((p) => {
+    const base = !p.schedule
+      ? { ...p, planType: p.planType || "review", schedule: [], completedVerses: 0, totalPages: p.totalPages || 1, totalVerses: p.totalVerses || 0 }
+      : { ...p, planType: p.planType || "review" };
+    const { plan: updated, changed } = syncPlanSchedule(base);
+    if (changed) {
+      anyChanged = true;
+      return { ...updated, updatedAt: new Date().toISOString() };
+    }
+    return updated;
+  });
+
+  if (anyChanged) {
+    saveAllPlans(syncedPlans, false);
+  }
+  return syncedPlans;
+}
+
 export default function Home() {
   const [allPlans, setAllPlans] = useState([]);
   const [activePlan, setActivePlan] = useState(null);
@@ -62,24 +71,28 @@ export default function Home() {
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveLoading, setDriveLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [draftPlanType, setDraftPlanType] = useState("review");
 
   const driveTimeoutRef = useRef(null);
+  const mobileImportInputRef = useRef(null);
+
+  const currentThemeType = (showCreateForm || isEditSheetOpen)
+    ? draftPlanType
+    : (activePlan?.planType || "review");
+
+  useEffect(() => {
+    if (currentThemeType === "memorization") {
+      document.documentElement.setAttribute("data-plan-theme", "memorization");
+    } else {
+      document.documentElement.removeAttribute("data-plan-theme");
+    }
+  }, [currentThemeType]);
 
   const reloadPlans = () => {
     try {
-      let plans = loadAllPlans();
-      plans = plans.map(p => {
-        if (!p.schedule) {
-          return { ...p, schedule: [], completedVerses: 0, totalPages: p.totalPages || 1, totalVerses: p.totalVerses || 0 };
-        }
-        return p;
-      });
+      const plans = normalizeAndSyncPlans(loadAllPlans());
       setAllPlans(plans);
-
       const active = loadActivePlan();
-      if (active && !active.schedule) {
-        active.schedule = [];
-      }
       setActivePlan(active);
       setShowCreateForm(plans.length === 0);
     } catch (err) {
@@ -97,7 +110,7 @@ export default function Home() {
       const plans = await syncFromDrive();
       if (plans) {
         reloadPlans();
-        showCustomToast('success', 'تمت المزامنة', 'تم تحديث البيانات من Drive.');
+        showCustomToast('success', 'تمت المزامنة', `تم دمج ومزامنة ${toArabicNumbers(plans.length)} خطة بنجاح.`);
       } else {
         await uploadToDrive();
         showCustomToast('success', 'تمت المزامنة', 'تم رفع بياناتك المحلية إلى السحابة.');
@@ -133,21 +146,22 @@ export default function Home() {
 
   const handleConnectDrive = async () => {
     setDriveLoading(true);
-
     driveTimeoutRef.current = setTimeout(() => {
-      console.warn('⚠️ Drive login popup timed out, resetting loading state.');
       setDriveLoading(false);
-    }, 5000);
+    }, 15000);
 
     try {
       await signInToDrive();
       setDriveConnected(true);
-
       try {
         const plans = await syncFromDrive();
         if (plans) {
           reloadPlans();
-          showCustomToast('success', 'تم الربط والمزامنة', 'تم تحميل أحدث البيانات من Drive.');
+          showCustomToast(
+            'success',
+            'تم الربط والدمج بنجاح',
+            `تم دمج خططك المحفوظة مع السحابة (الإجمالي: ${toArabicNumbers(plans.length)} خطة).`
+          );
         } else {
           await uploadToDrive();
           reloadPlans();
@@ -160,17 +174,8 @@ export default function Home() {
       }
     } catch (error) {
       const errorMsg = error?.message || error?.error || '';
-      const isCancellation = 
-        errorMsg.includes('popup_closed') || 
-        errorMsg.includes('access_denied') || 
-        errorMsg.includes('cancelled') ||
-        errorMsg.includes('User cancelled') ||
-        errorMsg.includes('user closed');
-
-      if (isCancellation) {
-        console.log('ℹ️ User cancelled Google Drive sign-in.');
-      } else {
-        console.error('❌ Drive sign-in error:', error);
+      const isCancellation = errorMsg.includes('popup_closed') || errorMsg.includes('access_denied') || errorMsg.includes('cancelled') || errorMsg.includes('User cancelled') || errorMsg.includes('user closed');
+      if (!isCancellation) {
         showCustomToast('error', 'فشل ربط Google Drive', errorMsg || 'حدث خطأ غير متوقع');
       }
     } finally {
@@ -180,8 +185,8 @@ export default function Home() {
     }
   };
 
-  const handleDisconnectDrive = () => {
-    signOutFromDrive();
+  const handleDisconnectDrive = async () => {
+    try { await signOutFromDrive(); } catch (e) { console.warn('Sign out failed:', e); }
     setDriveConnected(false);
     showCustomToast('info', 'تم فصل Google Drive', 'ستستمر البيانات محلياً');
   };
@@ -193,27 +198,14 @@ export default function Home() {
         setError(null);
         await initQuranData();
         setQuranReady(true);
-
-        let plans = loadAllPlans();
-        plans = plans.map(p => {
-          if (!p.schedule) {
-            return { ...p, schedule: [], completedVerses: 0, totalPages: p.totalPages || 1, totalVerses: p.totalVerses || 0 };
-          }
-          return p;
-        });
+        const plans = normalizeAndSyncPlans(loadAllPlans());
         setAllPlans(plans);
-
-        let active = loadActivePlan();
-        if (active && !active.schedule) {
-          active = { ...active, schedule: [], completedVerses: 0 };
-        }
+        const active = loadActivePlan();
         setActivePlan(active);
         setShowCreateForm(plans.length === 0);
-
         const prefersDark = localStorage.getItem("quran_dark_mode") === "true";
         setIsDark(prefersDark);
         if (prefersDark) document.documentElement.classList.add("dark");
-
         setLoading(false);
       } catch (err) {
         console.error("خطأ في التهيئة:", err);
@@ -234,39 +226,42 @@ export default function Home() {
 
   const handlePlanCreated = (newPlan) => {
     if (!newPlan.schedule) newPlan.schedule = [];
-    savePlan(newPlan);
-    setAllPlans(prev => [...prev, newPlan]);
-    setActivePlan(newPlan);
+    const saved = savePlan(newPlan);
+    setAllPlans(prev => [...prev, saved]);
+    setActivePlan(saved);
     setShowCreateForm(false);
-    showCustomToast('success', 'تم إنشاء الخطة بنجاح', `الخطة "${newPlan.name}" جاهزة للبدء.`);
+    showCustomToast('success', 'تم إنشاء الخطة بنجاح', `الخطة "${saved.name}" جاهزة للبدء.`);
   };
 
   const handlePlanUpdate = (updatedPlan) => {
     if (!updatedPlan.schedule) updatedPlan.schedule = [];
-    savePlan(updatedPlan);
-    setAllPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
-    setActivePlan(updatedPlan);
-    showCustomToast('success', 'تم تحديث الخطة', `تم حفظ التغييرات في "${updatedPlan.name}".`);
+    const saved = savePlan(updatedPlan);
+    setAllPlans(prev => prev.map(p => p.id === saved.id ? saved : p));
+    setActivePlan(saved);
+    showCustomToast('success', 'تم تحديث الخطة', `تم حفظ التغييرات في "${saved.name}".`);
   };
 
   const handleDeletePlan = (id) => {
+    const planToDelete = allPlans.find(p => p.id === id);
     deletePlan(id);
     const updated = loadAllPlans();
     setAllPlans(updated);
-    const active = loadActivePlan();
-    setActivePlan(active);
-    if (updated.length === 0) setShowCreateForm(true);
+    setActivePlan(loadActivePlan());
+    if (updated.length === 0) {
+      setDraftPlanType("review");
+      setShowCreateForm(true);
+    }
+    showCustomToast('success', 'تم حذف الخطة', planToDelete ? `تم حذف "${planToDelete.name}" بنجاح.` : 'تم الحذف بنجاح.');
   };
 
   const handleSwitchPlan = (id) => {
     setActivePlanId(id);
-    const plans = loadAllPlans();
-    const plan = plans.find(p => p.id === id);
-    setActivePlan(plan || null);
+    setActivePlan(allPlans.find(p => p.id === id) || null);
   };
 
   const handleNewPlan = () => {
     setEditingPlan(null);
+    setDraftPlanType("review");
     setShowCreateForm(true);
   };
 
@@ -278,6 +273,7 @@ export default function Home() {
 
   const handleEditPlan = (plan) => {
     setEditingPlan(plan);
+    setDraftPlanType(plan.planType || "review");
     setIsEditSheetOpen(true);
   };
 
@@ -298,12 +294,12 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `quran_review_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `murajaa_backup_${getLocalToday()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showCustomToast('success', 'تم التصدير بنجاح', `تم تصدير ${plans.length} خطة كملف JSON.`);
+    showCustomToast('success', 'تم التصدير بنجاح', `تم تصدير ${toArabicNumbers(plans.length)} خطة كملف JSON.`);
   };
 
   const handleImport = (event) => {
@@ -312,20 +308,30 @@ export default function Home() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const importedPlans = JSON.parse(e.target.result);
-        if (!Array.isArray(importedPlans) || importedPlans.length === 0) {
+        const parsed = JSON.parse(e.target.result);
+        const importedPlans = Array.isArray(parsed) ? parsed : (parsed?.plans && Array.isArray(parsed.plans) ? parsed.plans : null);
+
+        if (!importedPlans || importedPlans.length === 0) {
           showCustomToast('error', 'ملف غير صالح', 'الملف لا يحتوي على خطط صالحة.');
           return;
         }
-        if (window.confirm(`سيتم استبدال جميع الخطط الحالية (عددها ${allPlans.length}) بالخطط المستوردة (عددها ${importedPlans.length}). هل أنت متأكد؟`)) {
-          saveAllPlans(importedPlans);
-          const reloadedPlans = loadAllPlans();
-          setAllPlans(reloadedPlans);
-          const active = loadActivePlan();
-          setActivePlan(active);
-          setShowCreateForm(reloadedPlans.length === 0);
-          showCustomToast('success', 'تم الاستيراد بنجاح', `تم استيراد ${importedPlans.length} خطة.`);
+
+        const validPlans = importedPlans.filter((p) => p && typeof p === 'object' && p.name && p.startDate && p.endDate);
+        if (validPlans.length === 0) {
+          showCustomToast('error', 'ملف غير صالح', 'لم يتم العثور على خطط مكتملة البيانات داخل الملف.');
+          return;
         }
+
+        mergeImportedPlans(validPlans);
+        const reloadedPlans = normalizeAndSyncPlans(loadAllPlans());
+        setAllPlans(reloadedPlans);
+        setActivePlan(loadActivePlan());
+        setShowCreateForm(reloadedPlans.length === 0);
+        showCustomToast(
+          'success',
+          'تم الاستيراد والدمج بنجاح',
+          `تم دمج ${toArabicNumbers(validPlans.length)} خطة مع خططك الحالية (الإجمالي: ${toArabicNumbers(reloadedPlans.length)} خطة).`
+        );
       } catch (err) {
         showCustomToast('error', 'خطأ في الاستيراد', 'الملف غير صالح أو تالف.');
       }
@@ -341,13 +347,7 @@ export default function Home() {
           <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
           <h2 className="text-xl font-bold text-destructive mb-2">حدث خطأ أثناء تحميل بيانات القرآن</h2>
           <p className="text-muted-foreground text-sm mb-4">{error}</p>
-          <p className="text-muted-foreground text-xs mb-4">
-            تأكد من اتصالك بالإنترنت، أو حاول إعادة تحميل الصفحة.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors"
-          >
+          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors">
             إعادة تحميل
           </button>
         </div>
@@ -360,60 +360,48 @@ export default function Home() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" dir="rtl">
         <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
         <p className="text-sm text-muted-foreground">جاري تحميل بيانات المصحف...</p>
-        <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
       </div>
     );
   }
 
-  // ===== تعريف ألوان Tooltip حسب الوضع =====
   const tooltipColors = {
-    bg: isDark ? 'hsl(180, 8%, 9%)' : '#ffffff',
-    text: isDark ? 'hsl(40, 15%, 90%)' : '#1e293b',
-    border: isDark ? 'hsl(180, 8%, 18%)' : '#e2e8f0',
+    bg: isDark ? 'hsl(var(--popover))' : '#ffffff',
+    text: isDark ? 'hsl(var(--popover-foreground))' : '#1e293b',
+    border: isDark ? 'hsl(var(--border))' : '#e2e8f0',
   };
 
-  // ===== الواجهة الرئيسية =====
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shadow-md shadow-primary/20">
-              <BookOpen className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
+      {/* ✅ شريط علوي متجاوب ونظيف للهاتف والكمبيوتر بدون التفاف نصوص أو تكدّس أيقونات */}
+      <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border/50">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          {/* الشعار والعنوان */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-primary flex items-center justify-center shadow-sm shadow-primary/20 shrink-0 transition-colors duration-300">
+              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" strokeWidth={2.5} />
             </div>
-            <div>
-              <h1 className="text-lg font-bold font-heading text-foreground leading-tight">مُراجِع</h1>
-              <p className="text-[10px] text-muted-foreground leading-tight opacity-70">
-                إدارة مراجعة القرآن
+            <div className="flex flex-col justify-center min-w-0">
+              <h1 className="text-base sm:text-lg font-bold font-heading text-foreground leading-tight whitespace-nowrap">
+                مُراجِع
+              </h1>
+              <p className="hidden sm:block text-[11px] text-muted-foreground leading-tight whitespace-nowrap mt-0.5">
+                إدارة حفظ ومراجعة القرآن
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* مجموعة التصدير/الاستيراد */}
-            <div className="flex items-center gap-1 border-l border-border/40 pl-2">
+          {/* أزرار الأدوات */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* 1. عرض سطح المكتب والأجهزة اللوحية (sm فأكبر): جميع الأزرار ظاهرة */}
+            <div className="hidden sm:flex items-center gap-1 border-l border-border/40 pl-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      onClick={handleExport}
-                      className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200"
-                    >
-                      <Download className="w-3.5 h-3.5" />
+                    <button onClick={handleExport} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200">
+                      <Download className="w-4 h-4 text-foreground" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="text-xs border"
-                    style={{
-                      backgroundColor: tooltipColors.bg,
-                      color: tooltipColors.text,
-                      borderColor: tooltipColors.border,
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                    }}
-                  >
+                  <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
                     <p>تصدير الخطط</p>
                   </TooltipContent>
                 </Tooltip>
@@ -422,58 +410,31 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <label className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5" />
+                    <label className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 cursor-pointer">
+                      <Upload className="w-4 h-4 text-foreground" />
                       <input type="file" accept=".json" onChange={handleImport} className="hidden" />
                     </label>
                   </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="text-xs border"
-                    style={{
-                      backgroundColor: tooltipColors.bg,
-                      color: tooltipColors.text,
-                      borderColor: tooltipColors.border,
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                    }}
-                  >
-                    <p>استيراد الخطط</p>
+                  <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
+                    <p>استيراد ودمج الخطط</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
 
-            {/* مجموعة Drive */}
-            <div className="flex items-center gap-1">
+            <div className="hidden sm:flex items-center gap-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      onClick={handleManualSync}
-                      disabled={!driveConnected || syncing}
-                      className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200 disabled:opacity-50"
-                    >
+                    <button onClick={handleManualSync} disabled={!driveConnected || syncing} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
                       {syncing ? (
-                        <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <RefreshCw className={`w-3.5 h-3.5 ${!driveConnected ? 'text-muted-foreground/50' : 'text-foreground'}`} />
+                        <RefreshCw className={`w-4 h-4 ${!driveConnected ? 'text-muted-foreground/50' : 'text-foreground'}`} />
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="text-xs border"
-                    style={{
-                      backgroundColor: tooltipColors.bg,
-                      color: tooltipColors.text,
-                      borderColor: tooltipColors.border,
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                    }}
-                  >
+                  <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
                     <p>{!driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}</p>
                   </TooltipContent>
                 </Tooltip>
@@ -482,66 +443,107 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
-                      disabled={driveLoading}
-                      className="h-8 w-8 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200 disabled:opacity-50"
-                    >
+                    <button onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive} disabled={driveLoading} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
                       {driveLoading ? (
-                        <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : driveConnected ? (
-                        <Cloud className="w-3.5 h-3.5 text-emerald-500" />
+                        <Cloud className="w-4 h-4 text-primary" />
                       ) : (
-                        <CloudOff className="w-3.5 h-3.5 text-muted-foreground" />
+                        <CloudOff className="w-4 h-4 text-muted-foreground" />
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="text-xs border"
-                    style={{
-                      backgroundColor: tooltipColors.bg,
-                      color: tooltipColors.text,
-                      borderColor: tooltipColors.border,
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                    }}
-                  >
+                  <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
                     <p>{driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
 
-            {/* الوضع المظلم */}
-            {/* الوضع المظلم */}
-<TooltipProvider>
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <button
-        onClick={toggleDarkMode}
-        className="h-8 w-8 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/30 active:scale-95 transition-all duration-200"
-      >
-        {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-      </button>
-    </TooltipTrigger>
-    <TooltipContent
-      side="bottom"
-      className="text-xs border"
-      style={{
-        backgroundColor: tooltipColors.bg,
-        color: tooltipColors.text,
-        borderColor: tooltipColors.border,
-        borderRadius: '6px',
-        padding: '4px 10px',
-        fontSize: '12px',
-      }}
-    >
-      <p>{isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع المظلم'}</p>
-    </TooltipContent>
-  </Tooltip>
-</TooltipProvider>
+            {/* 2. عرض الهاتف (< sm): زرا السحابة والثيم + قائمة منسدلة منظمة للنسخ الاحتياطي والمزامنة */}
+            <div className="flex sm:hidden items-center gap-1">
+              <button
+                onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
+                disabled={driveLoading}
+                aria-label={driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}
+                className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200 disabled:opacity-50"
+              >
+                {driveLoading || syncing ? (
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : driveConnected ? (
+                  <Cloud className="w-4 h-4 text-primary" />
+                ) : (
+                  <CloudOff className="w-4 h-4 text-muted-foreground" />
+                )}
+              </button>
+
+              <button
+                onClick={toggleDarkMode}
+                aria-label={isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع المظلم'}
+                className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200"
+              >
+                {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
+              </button>
+
+              <input
+                ref={mobileImportInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <DropdownMenu dir="rtl">
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label="خيارات النسخ الاحتياطي والمزامنة"
+                    className="h-9 w-9 rounded-xl flex items-center justify-center bg-card border border-border/50 active:scale-95 transition-all duration-200"
+                  >
+                    <MoreVertical className="w-4 h-4 text-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 p-1.5 rounded-2xl">
+                  <DropdownMenuItem
+                    onClick={handleManualSync}
+                    disabled={!driveConnected || syncing}
+                    className="rounded-xl px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2.5 focus:bg-primary/15 focus:text-foreground"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-primary ${syncing ? 'animate-spin' : ''}`} />
+                    <span>مزامنة الآن مع Drive</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleExport}
+                    className="rounded-xl px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2.5 focus:bg-primary/15 focus:text-foreground"
+                  >
+                    <Download className="w-4 h-4 text-primary" />
+                    <span>تصدير نسخة احتياطية</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => mobileImportInputRef.current?.click()}
+                    className="rounded-xl px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2.5 focus:bg-primary/15 focus:text-foreground"
+                  >
+                    <Upload className="w-4 h-4 text-primary" />
+                    <span>استيراد ودمج الخطط</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* زر الوضع المظلم لسطح المكتب */}
+            <div className="hidden sm:block">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button onClick={toggleDarkMode} className="h-9 w-9 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200">
+                      {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
+                    <p>{isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع المظلم'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </div>
       </header>
@@ -552,6 +554,7 @@ export default function Home() {
             onPlanCreated={handlePlanCreated}
             onCancel={handleCancelCreate}
             existingPlans={allPlans}
+            onPlanTypeChange={setDraftPlanType}
           />
         ) : activePlan ? (
           <Dashboard
@@ -562,7 +565,7 @@ export default function Home() {
             onSwitchPlan={handleSwitchPlan}
             onNewPlan={handleNewPlan}
             onEditPlan={handleEditPlan}
-            isDark={isDark} // ✅ تمرير isDark إلى Dashboard
+            isDark={isDark}
           />
         ) : (
           <div className="text-center py-12">
@@ -574,15 +577,21 @@ export default function Home() {
 
       <footer className="border-t border-border/40 mt-12">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 text-center">
-          <p className="text-xs text-muted-foreground">مُراجِع · تطبيق شخصي لإدارة مراجعة القرآن الكريم</p>
+          <p className="text-xs text-muted-foreground">مُراجِع · تطبيق شخصي لإدارة حفظ ومراجعة القرآن الكريم</p>
         </div>
       </footer>
 
-      <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
+      <Sheet
+        open={isEditSheetOpen}
+        onOpenChange={(open) => {
+          setIsEditSheetOpen(open);
+          if (!open) setEditingPlan(null);
+        }}
+      >
         <SheetContent side="bottom" className="h-[95vh] overflow-y-auto rounded-t-3xl p-0" dir="rtl">
           <div className="p-6">
             <SheetHeader className="mb-4">
-              <SheetTitle>تعديل الخطة</SheetTitle>
+              <SheetTitle className="text-foreground">تعديل الخطة</SheetTitle>
             </SheetHeader>
             {editingPlan && (
               <CreatePlanForm
@@ -594,6 +603,7 @@ export default function Home() {
                   setEditingPlan(null);
                 }}
                 existingPlans={allPlans}
+                onPlanTypeChange={setDraftPlanType}
               />
             )}
           </div>

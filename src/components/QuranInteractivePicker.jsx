@@ -1,6 +1,6 @@
-// src/components/QuranInteractivePicker.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { getQuranData, getVersesBetween, getPageTexts, initQuranData, getSurahName } from "@/lib/quranData";
+import { getQuranData, getPageTexts, initQuranData, getSurahName } from "@/lib/quranData";
+import { toArabicNumbers } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X, ChevronsLeft, ChevronsRight } from "lucide-react";
 
@@ -22,15 +22,6 @@ export default function QuranInteractivePicker({
 
   const quranData = useMemo(() => getQuranData(), []);
 
-  const toArabicNumber = (num) => {
-    const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
-    return num
-      .toString()
-      .split("")
-      .map((d) => arabicDigits[parseInt(d)])
-      .join("");
-  };
-
   useEffect(() => {
     async function loadData() {
       try {
@@ -51,8 +42,7 @@ export default function QuranInteractivePicker({
     const info = quranData.pageMap[currentPage];
     setPageData(info);
     if (info?.startChapter) {
-      const name = getSurahName(info.startChapter);
-      setSurahName(name);
+      setSurahName(getSurahName(info.startChapter));
     }
   }, [currentPage, quranData, loading]);
 
@@ -69,14 +59,10 @@ export default function QuranInteractivePicker({
     (startPage, startVerse, endPage, endVerse) => {
       const clampedStart = Math.max(planStartPage, Math.min(planEndPage, startPage));
       const clampedEnd = Math.max(planStartPage, Math.min(planEndPage, endPage));
-      if (clampedStart !== startPage || clampedEnd !== endPage) {
-        console.warn("النطاق المحدد خارج النطاق المسموح، تم تعديله تلقائياً");
-      }
+
+      if (clampedStart === clampedEnd) return endVerse - startVerse + 1;
 
       let count = 0;
-      if (clampedStart === clampedEnd) {
-        return endVerse - startVerse + 1;
-      }
       const startTexts = getPageTexts(clampedStart);
       count += startTexts.length - startVerse;
       for (let p = clampedStart + 1; p < clampedEnd; p++) {
@@ -90,8 +76,7 @@ export default function QuranInteractivePicker({
 
   const handleVerseClick = (verseIndex) => {
     if (currentPage < planStartPage || currentPage > planEndPage) {
-      const newPage = Math.max(planStartPage, Math.min(planEndPage, currentPage));
-      setCurrentPage(newPage);
+      setCurrentPage(Math.max(planStartPage, Math.min(planEndPage, currentPage)));
       return;
     }
 
@@ -104,6 +89,15 @@ export default function QuranInteractivePicker({
     if (startSelection && endSelection) {
       setStartSelection({ page: currentPage, verseIndex });
       setEndSelection(null);
+      onSelectionChange({
+        type: "verses",
+        startPage: currentPage,
+        startVerse: verseIndex + 1,
+        endPage: currentPage,
+        endVerse: verseIndex + 1,
+        versesCount: 0,
+        displayLabel: "",
+      });
       return;
     }
 
@@ -116,6 +110,7 @@ export default function QuranInteractivePicker({
       if (endPage > startPage || (endPage === startPage && endVerse >= startVerse)) {
         setEndSelection({ page: endPage, verseIndex: endVerse });
         const versesCount = calculateVersesBetween(startPage, startVerse, endPage, endVerse);
+        // ✅ استخدام الأرقام العربية في displayLabel
         onSelectionChange({
           type: "verses",
           startPage,
@@ -123,7 +118,7 @@ export default function QuranInteractivePicker({
           endPage,
           endVerse: endVerse + 1,
           versesCount,
-          displayLabel: `من ص ${startPage} آية ${startVerse + 1} إلى ص ${endPage} آية ${endVerse + 1}`,
+          displayLabel: `من ص ${toArabicNumbers(startPage)} آية ${toArabicNumbers(startVerse + 1)} إلى ص ${toArabicNumbers(endPage)} آية ${toArabicNumbers(endVerse + 1)}`,
         });
       } else {
         setStartSelection({ page: currentPage, verseIndex });
@@ -134,50 +129,28 @@ export default function QuranInteractivePicker({
 
   const clearSelection = () => {
     const startPage = Math.max(planStartPage, Math.min(planEndPage, targetStartPage || planStartPage || 1));
-    const newStart = { page: startPage, verseIndex: 0 };
-    setStartSelection(newStart);
+    setStartSelection({ page: startPage, verseIndex: 0 });
     setEndSelection(null);
     setCurrentPage(startPage);
     onSelectionChange({
       type: "verses",
-      startPage: startPage,
+      startPage,
       startVerse: 1,
       endPage: startPage,
       endVerse: 1,
-      versesCount: 1,
-      displayLabel: `ص ${startPage} آية 1`,
+      versesCount: 0,
+      displayLabel: "",
     });
   };
 
-  const handlePrevPage = () => {
-    const minPage = planStartPage || 1;
-    if (currentPage > minPage) setCurrentPage(currentPage - 1);
-  };
+  const handlePrevPage = () => { if (currentPage > (planStartPage || 1)) setCurrentPage(currentPage - 1); };
+  const handleNextPage = () => { if (currentPage < (planEndPage || 604)) setCurrentPage(currentPage + 1); };
+  const goToFirstPage = () => setCurrentPage(planStartPage || 1);
+  const goToLastPage = () => setCurrentPage(planEndPage || 604);
 
-  const handleNextPage = () => {
-    const maxPage = planEndPage || 604;
-    if (currentPage < maxPage) setCurrentPage(currentPage + 1);
-  };
-
-  const goToFirstPage = () => {
-    setCurrentPage(planStartPage || 1);
-  };
-
-  const goToLastPage = () => {
-    setCurrentPage(planEndPage || 604);
-  };
-
-  if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">جاري تحميل المصحف...</div>;
-  }
-
-  if (error) {
-    return <div className="text-center py-8 text-destructive">فشل تحميل بيانات المصحف: {error}</div>;
-  }
-
-  if (!quranData) {
-    return <div className="text-center py-8 text-muted-foreground">لا توجد بيانات المصحف</div>;
-  }
+  if (loading) return <div className="text-center py-8 text-muted-foreground">جاري تحميل المصحف...</div>;
+  if (error) return <div className="text-center py-8 text-destructive">فشل تحميل بيانات المصحف: {error}</div>;
+  if (!quranData) return <div className="text-center py-8 text-muted-foreground">لا توجد بيانات المصحف</div>;
 
   const isVerseInRange = (verseIndex) => {
     if (!startSelection || !endSelection) return false;
@@ -187,17 +160,12 @@ export default function QuranInteractivePicker({
     return true;
   };
 
-  const isStartVerse = (verseIndex) => {
-    return startSelection && currentPage === startSelection.page && verseIndex === startSelection.verseIndex;
-  };
-
-  const isEndVerse = (verseIndex) => {
-    return endSelection && currentPage === endSelection.page && verseIndex === endSelection.verseIndex;
-  };
+  const isStartVerse = (verseIndex) => startSelection && currentPage === startSelection.page && verseIndex === startSelection.verseIndex;
+  const isEndVerse = (verseIndex) => endSelection && currentPage === endSelection.page && verseIndex === endSelection.verseIndex;
 
   return (
-    <div className="space-y-4 max-h-[70vh] overflow-y-auto p-4 bg-card rounded-2xl border border-border/60">
-      {/* رأس الصفحة */}
+    // ✅ إزالة max-h-[70vh] overflow-y-auto لمنع ازدواج شريط التمرير داخل FlexibleEntryPanel
+    <div className="space-y-4 p-4 bg-card rounded-2xl border border-border/60">
       <div className="flex flex-col items-center border-b border-border/40 pb-4">
         <div className="flex items-center justify-between w-full">
           <div className="text-lg font-bold text-foreground font-serif">{surahName || "القرآن الكريم"}</div>
@@ -205,23 +173,11 @@ export default function QuranInteractivePicker({
             <Button variant="outline" size="sm" onClick={goToFirstPage} className="h-8 w-8 p-0">
               <ChevronsRight className="w-4 h-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrevPage}
-              disabled={currentPage <= (planStartPage || 1)}
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="outline" size="sm" onClick={handlePrevPage} disabled={currentPage <= (planStartPage || 1)} className="h-8 w-8 p-0">
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <span className="text-sm font-medium text-muted-foreground min-w-[60px] text-center">ص {currentPage}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNextPage}
-              disabled={currentPage >= (planEndPage || 604)}
-              className="h-8 w-8 p-0"
-            >
+            <span className="text-sm font-semibold text-foreground min-w-[60px] text-center">ص {toArabicNumbers(currentPage)}</span>
+            <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage >= (planEndPage || 604)} className="h-8 w-8 p-0">
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={goToLastPage} className="h-8 w-8 p-0">
@@ -230,21 +186,20 @@ export default function QuranInteractivePicker({
           </div>
         </div>
         <div className="text-xs text-muted-foreground mt-1">
-          {pageData?.juzu ? `الجزء ${pageData.juzu} · الحزب ${pageData.hizb}` : ""}
+          {pageData?.juzu ? `الجزء ${toArabicNumbers(pageData.juzu)} · الحزب ${toArabicNumbers(pageData.hizb)}` : ""}
           <span className="mx-2">|</span>
-          <span className="text-primary/70">
-            النطاق: {planStartPage} - {planEndPage}
+          <span className="text-primary font-medium">
+            النطاق: {toArabicNumbers(planStartPage)} - {toArabicNumbers(planEndPage)}
           </span>
         </div>
       </div>
 
-      {/* حالة التحديد الحالية */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-primary/5 rounded-xl p-3 border border-primary/10">
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="font-medium text-muted-foreground">البداية:</span>
           {startSelection ? (
-            <span className="text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
-              ص {startSelection.page} آية {toArabicNumber(startSelection.verseIndex + 1)}
+            <span className="text-primary font-semibold bg-primary/10 px-3 py-1 rounded-lg border border-primary/20">
+              ص {toArabicNumbers(startSelection.page)} آية {toArabicNumbers(startSelection.verseIndex + 1)}
             </span>
           ) : (
             <span className="text-muted-foreground">لم تُحدد</span>
@@ -252,55 +207,42 @@ export default function QuranInteractivePicker({
           <span className="text-muted-foreground">→</span>
           <span className="font-medium text-muted-foreground">النهاية:</span>
           {endSelection ? (
-            <span className="text-amber-700 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/30 px-3 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
-              ص {endSelection.page} آية {toArabicNumber(endSelection.verseIndex + 1)}
+            <span className="text-accent font-semibold bg-accent/10 px-3 py-1 rounded-lg border border-accent/20">
+              ص {toArabicNumbers(endSelection.page)} آية {toArabicNumbers(endSelection.verseIndex + 1)}
             </span>
           ) : (
             <span className="text-muted-foreground">لم تُحدد</span>
           )}
           {startSelection && endSelection && (
-            <span className="text-primary font-medium bg-primary/10 px-3 py-1 rounded-lg">
+            <span className="text-primary font-bold bg-primary/10 px-3 py-1 rounded-lg border border-primary/20">
               {endSelection.page === startSelection.page
-                ? `${toArabicNumber(endSelection.verseIndex - startSelection.verseIndex + 1)} آيات`
-                : `${toArabicNumber(calculateVersesBetween(startSelection.page, startSelection.verseIndex, endSelection.page, endSelection.verseIndex))} آيات`}
+                ? `${toArabicNumbers(endSelection.verseIndex - startSelection.verseIndex + 1)} آيات`
+                : `${toArabicNumbers(calculateVersesBetween(startSelection.page, startSelection.verseIndex, endSelection.page, endSelection.verseIndex))} آيات`}
             </span>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearSelection}
-          className="text-muted-foreground hover:text-destructive h-8 px-3 text-xs gap-1"
-        >
+        <Button variant="ghost" size="sm" onClick={clearSelection} className="text-muted-foreground hover:text-destructive h-8 px-3 text-xs gap-1">
           <X className="w-3 h-3" /> إعادة تعيين
         </Button>
       </div>
 
-      {/* نص الصفحة */}
       <div className="bg-background border rounded-2xl p-4 md:p-6 min-h-[300px]">
         <div className="flex flex-col gap-1" dir="rtl">
           {pageTexts.length > 0 ? (
             pageTexts.map((item, index) => {
-              const verseNumber = item.verseNumber;
               const inRange = isVerseInRange(index);
               const isStart = isStartVerse(index);
               const isEnd = isEndVerse(index);
 
-              let className =
-                "w-full text-right px-3 py-1 rounded-lg transition-all cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/30 font-serif text-lg leading-[2.2] text-foreground";
-
-              if (isStart) {
-                className += " bg-emerald-100/70 dark:bg-emerald-900/40 border-r-4 border-emerald-400";
-              } else if (isEnd) {
-                className += " bg-amber-100/70 dark:bg-amber-900/40 border-r-4 border-amber-400";
-              } else if (inRange) {
-                className += " bg-primary/5 dark:bg-primary/10";
-              }
+              let className = "w-full text-right px-3 py-1 rounded-lg transition-all cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/30 font-serif text-lg leading-[2.2] text-foreground";
+              if (isStart) className += " bg-primary/10 border-r-4 border-primary";
+              else if (isEnd) className += " bg-accent/10 border-r-4 border-accent";
+              else if (inRange) className += " bg-primary/5";
 
               return (
                 <button key={index} onClick={() => handleVerseClick(index)} className={className}>
                   {item.text}
-                  <span className="text-base text-muted-foreground mr-1 font-serif">۝{toArabicNumber(verseNumber)}</span>
+                  <span className="text-base text-muted-foreground mr-1 font-serif">۝{toArabicNumbers(item.verseNumber)}</span>
                 </button>
               );
             })
@@ -312,7 +254,7 @@ export default function QuranInteractivePicker({
 
       <div className="text-center text-xs text-muted-foreground border-t border-border/40 pt-3">
         <p>انقر على أي آية لتحديد النهاية. البداية محددة تلقائياً.</p>
-        <p className="text-primary/60">الآيات المحددة تظهر بلون مميز</p>
+        <p className="text-primary/70 font-medium">الآيات المحددة تظهر بلون مميز</p>
       </div>
     </div>
   );

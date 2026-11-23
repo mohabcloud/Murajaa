@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, BookOpen, RotateCcw, ChevronUp, ChevronDown, LayoutGrid, Target, SkipForward, RefreshCw } from "lucide-react";
+import { Check, BookOpen, RotateCcw, ChevronUp, ChevronDown, LayoutGrid, Target, SkipForward, RefreshCw, Coffee } from "lucide-react";
 import {
   formatQuranUnits,
   flexibleInputToVerses,
@@ -38,6 +38,9 @@ export default function FlexibleEntryPanel({
   const [input, setInput] = useState({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0, customStartPage: null });
   const [note, setNote] = useState("");
   const [useVisualMode, setUseVisualMode] = useState(false);
+  const [guidedFilled, setGuidedFilled] = useState(false);
+  const [guidedFillCount, setGuidedFillCount] = useState(0);
+  const [guidedClearCount, setGuidedClearCount] = useState(0);
 
   const labels = getPlanLabels(planType);
 
@@ -45,7 +48,10 @@ export default function FlexibleEntryPanel({
     if (day) {
       setNote(day.note || "");
     }
-  }, [day]);
+    setGuidedFilled(false);
+    setGuidedFillCount(0);
+    setGuidedClearCount(0);
+  }, [day, open]);
 
   const startPage = input.customStartPage || day?.targetStartPage || 1;
   const calculatedVerses = flexibleInputToVerses(input, startPage);
@@ -56,21 +62,51 @@ export default function FlexibleEntryPanel({
 
   const diff = day ? (calculatedVerses - targetVerses) : 0;
 
-  // ✅ تعبئة ورد الدورة السابقة المقترح بدقة
-  const fillGuidedReview = () => {
-    if (day && day.targetVerses > 0) {
+  // ✅ تبديل التعبئة التلقائية: تعبئة في الضغطة الأولى، وإزالة التحديد في الضغطة الثانية
+  const toggleGuidedReview = () => {
+    if (!day || (day.targetVerses <= 0 && (!day.targetStartPage || !day.targetEndPage))) return;
+
+    if (guidedFilled) {
+      setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0, customStartPage: null });
+      setNote(day.note || "");
+      setGuidedFilled(false);
+      setGuidedClearCount((c) => c + 1);
+      return;
+    }
+
+    const refStart = day.targetStartPage || 1;
+    if (day.targetStartPage && day.targetEndPage) {
+      const totalPagesCount = Math.max(1, day.targetEndPage - day.targetStartPage + 1);
+      const juzCount = Math.floor(totalPagesCount / 20);
+      const remPages = totalPagesCount % 20;
+      const hizbCount = Math.floor(remPages / 10);
+      const directPages = remPages % 10;
+
+      setInput({
+        juz: juzCount,
+        hizb: hizbCount,
+        rub: 0,
+        pages: directPages,
+        verses: 0,
+        customStartPage: refStart,
+      });
+    } else {
       setInput({
         juz: 0,
         hizb: 0,
         rub: 0,
         pages: 0,
         verses: day.targetVerses,
-        customStartPage: day.targetStartPage || 1,
+        customStartPage: refStart,
       });
-      if (!note && day.targetStartPage && day.targetEndPage) {
-        setNote(`${labels.consolidationNoun} ص${toArabicNumbers(day.targetStartPage)} إلى ص${toArabicNumbers(day.targetEndPage)}`);
-      }
     }
+
+    if (day.targetStartPage && day.targetEndPage) {
+      setNote(`${labels.consolidationNoun} ص${toArabicNumbers(day.targetStartPage)} إلى ص${toArabicNumbers(day.targetEndPage)}`);
+    }
+
+    setGuidedFilled(true);
+    setGuidedFillCount((c) => c + 1);
   };
 
   const isLess = diff < 0 && calculatedVerses > 0;
@@ -91,6 +127,9 @@ export default function FlexibleEntryPanel({
   const resetInput = () => {
     setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0, customStartPage: null });
     setNote("");
+    setGuidedFilled(false);
+    setGuidedFillCount(0);
+    setGuidedClearCount(0);
   };
 
   const handleSave = () => {
@@ -114,13 +153,20 @@ export default function FlexibleEntryPanel({
     resetInput();
   };
 
-  const adjustValue = (key, amount) => setInput(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + amount) }));
+  const adjustValue = (key, amount) => {
+    setGuidedFilled(false);
+    setInput(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + amount) }));
+  };
 
   if (!day) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl" dir="rtl" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent
+        className="w-[calc(100vw-1.5rem)] max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 rounded-3xl"
+        dir="rtl"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-center font-heading text-xl text-foreground">
             {day.isReviewDay
@@ -129,24 +175,29 @@ export default function FlexibleEntryPanel({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="py-3 space-y-5">
-          <div className="text-center bg-muted/50 rounded-xl p-4">
+        <div className="py-2 sm:py-3 space-y-4 sm:space-y-5 min-w-0 w-full">
+          <div className="text-center bg-muted/50 rounded-xl p-3.5 sm:p-4">
             <p className="text-sm text-muted-foreground">
               {day.dayName} - {formatArabicDate(day.date)}
             </p>
             {day.isOff ? (
-              <p className="text-lg font-bold text-foreground mt-1">☕ يوم إجازة</p>
+              <div className="mt-1.5 inline-flex items-center justify-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                  <Coffee className="w-4 h-4 text-muted-foreground" />
+                </span>
+                <span className="text-lg font-bold text-foreground">يوم إجازة</span>
+              </div>
             ) : day.isReviewDay ? (
               <div className="mt-1 space-y-1">
                 <p className="text-base font-bold text-foreground flex items-center justify-center gap-1.5">
-                  <RefreshCw className="w-4 h-4 text-accent" />
+                  <RefreshCw className="w-4 h-4 text-primary" />
                   <span>{labels.consolidationNoun} (مقترح الدورة السابقة):</span>
                 </p>
                 {targetVerses > 0 ? (
-                  <p className="text-lg font-bold text-accent">
+                  <p className="text-lg font-bold text-primary">
                     {formatQuranUnits(targetVerses, day.targetStartPage || 1)}
                     {day.targetStartPage && (
-                      <span className="text-xs font-normal text-muted-foreground mr-2">
+                      <span className="text-xs font-normal text-muted-foreground ms-2">
                         (ص{toArabicNumbers(day.targetStartPage)} ← ص{toArabicNumbers(day.targetEndPage)})
                       </span>
                     )}
@@ -162,39 +213,58 @@ export default function FlexibleEntryPanel({
             )}
           </div>
 
-          {day.isReviewDay && day.targetVerses > 0 && (
+          {day.isReviewDay && (day.targetVerses > 0 || (day.targetStartPage && day.targetEndPage)) && (
             <Button
+              type="button"
               variant="outline"
               size="sm"
-              onClick={fillGuidedReview}
-              className="w-full rounded-xl border-accent/40 text-accent hover:bg-accent/10 hover:text-accent font-semibold"
+              onClick={toggleGuidedReview}
+              className={`w-full rounded-xl font-semibold transition-colors ${
+                guidedFilled
+                  ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                  : "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+              }`}
             >
-              <Target className="w-4 h-4 ml-2" /> تعبئة بمقترح الدورة السابقة
+              {guidedFilled ? (
+                <><Check className="w-4 h-4 me-2" /> تمت التعبئة (اضغط للإلغاء)</>
+              ) : (
+                <><Target className="w-4 h-4 me-2" /> تعبئة بمقترح الدورة السابقة</>
+              )}
             </Button>
           )}
 
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <Label className="text-sm font-semibold text-foreground">
-                {day.isReviewDay ? `ماذا ثبّتَّ اليوم؟ (اختيار حر)` : `ماذا أنجزت اليوم؟`}
+          <div className="min-w-0 w-full">
+            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+              <Label className="text-sm font-semibold text-foreground leading-normal">
+                {day.isReviewDay ? `ماذا ثبّتَّ اليوم؟` : `ماذا أنجزت اليوم؟`}
               </Label>
               <button
                 type="button"
                 onClick={() => setUseVisualMode(!useVisualMode)}
-                className="text-xs bg-primary/10 text-primary font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-primary/20 transition-colors"
+                className="text-xs bg-primary/10 text-primary font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-primary/20 transition-colors shrink-0 whitespace-nowrap"
               >
-                {useVisualMode ? <><Check className="w-3 h-3"/> إدخال رقمي</> : <><LayoutGrid className="w-3 h-3"/> واجهة المصحف</>}
+                {useVisualMode ? <><Check className="w-3.5 h-3.5 shrink-0"/> إدخال رقمي</> : <><LayoutGrid className="w-3.5 h-3.5 shrink-0"/> واجهة المصحف</>}
               </button>
             </div>
 
-            <div className={useVisualMode ? "" : "hidden"}>
-              {/* ✅ في يوم التثبيت: إتاحة اختيار أي نطاق من كامل المصحف (١ إلى ٦٠٤) */}
+            <div className={useVisualMode ? "min-w-0 w-full" : "hidden"}>
               <QuranInteractivePicker
                 targetStartPage={day?.targetStartPage || 1}
                 targetEndPage={day?.targetEndPage || 604}
                 planStartPage={1}
                 planEndPage={604}
+                clearTrigger={guidedClearCount}
+                presetRange={
+                  guidedFillCount > 0 && day?.targetStartPage && day?.targetEndPage
+                    ? {
+                        startPage: day.targetStartPage,
+                        endPage: day.targetEndPage,
+                        triggerKey: guidedFillCount,
+                      }
+                    : null
+                }
                 onSelectionChange={(data) => {
+                  setGuidedFilled(false);
                   if (data.versesCount > 0) {
                     setInput({
                       juz: 0,
@@ -214,13 +284,17 @@ export default function FlexibleEntryPanel({
               />
             </div>
 
-            <div className={useVisualMode ? "hidden" : ""}>
-              <div className="grid grid-cols-5 gap-2 mb-3">
+            <div className={useVisualMode ? "hidden" : "min-w-0 w-full"}>
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2 mb-3">
                 {[{ key: "juz", label: "أجزاء" }, { key: "hizb", label: "أحزاب" }, { key: "rub", label: "أرباع" }, { key: "pages", label: "صفحات" }, { key: "verses", label: "آيات" }].map((unit) => (
-                  <div key={unit.key} className="text-center space-y-1">
+                  <div key={unit.key} className="text-center space-y-1 min-w-0">
                     <Label className="text-[11px] text-muted-foreground block">{unit.label}</Label>
-                    <div className="relative flex flex-col items-center bg-background border border-border/60 rounded-2xl p-1 focus-within:border-primary/50 transition-colors">
-                      <button type="button" onClick={() => adjustValue(unit.key, 1)} className="text-muted-foreground hover:text-primary p-0.5 transition-colors">
+                    <div className="relative flex flex-col items-center bg-background border border-border/60 rounded-2xl overflow-hidden focus-within:border-primary/50 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => adjustValue(unit.key, 1)}
+                        className="w-full py-1.5 flex items-center justify-center text-muted-foreground hover:text-primary active:scale-95 transition-colors"
+                      >
                         <ChevronUp className="w-3.5 h-3.5" />
                       </button>
                       <Input
@@ -228,14 +302,19 @@ export default function FlexibleEntryPanel({
                         inputMode="numeric"
                         value={toArabicNumbers(input[unit.key] || 0)}
                         onChange={(e) => {
+                          setGuidedFilled(false);
                           const normalized = normalizeDigits(e.target.value).replace(/[^0-9]/g, '');
                           const val = parseInt(normalized, 10) || 0;
                           setInput(prev => ({ ...prev, [unit.key]: val }));
                         }}
-                        className="h-7 w-full border-0 bg-transparent p-0 text-center text-sm font-bold text-foreground focus-visible:ring-0"
+                        className="h-7 w-full border-0 shadow-none bg-transparent p-0 text-center text-sm font-bold text-foreground focus-visible:ring-0"
                         dir="rtl"
                       />
-                      <button type="button" onClick={() => adjustValue(unit.key, -1)} className="text-muted-foreground hover:text-primary p-0.5 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => adjustValue(unit.key, -1)}
+                        className="w-full py-1.5 flex items-center justify-center text-muted-foreground hover:text-primary active:scale-95 transition-colors"
+                      >
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -244,11 +323,10 @@ export default function FlexibleEntryPanel({
               </div>
             </div>
 
-            {/* ✅ حقل ملاحظة اختياري لتدوين ما تم تثبيته في يوم التثبيت/الربط */}
             {day.isReviewDay && (
               <div className="mt-3">
                 <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  ملاحظة اختيارية (ما الذي ثبّتَّه؟)
+                  ملاحظة اختيارية (ما الذي ثبّتَّه؟)
                 </Label>
                 <Input
                   type="text"
@@ -261,9 +339,19 @@ export default function FlexibleEntryPanel({
               </div>
             )}
 
-            <div className="bg-card border border-border/60 rounded-xl p-4 text-center mt-3">
+            <div className={`bg-card border rounded-xl p-4 text-center mt-3 transition-colors ${
+              guidedFilled ? "border-primary/40 bg-primary/5" : "border-border/60"
+            }`}>
               <p className="text-sm text-muted-foreground">الإجمالي المحسوب</p>
-              <p className="text-3xl font-bold text-primary">{formatQuranUnits(calculatedVerses, startPage)}</p>
+              {calculatedVerses > 0 ? (
+                <p className="text-2xl sm:text-3xl font-bold text-primary mt-1">
+                  {formatQuranUnits(calculatedVerses, startPage)}
+                </p>
+              ) : (
+                <p className="text-sm font-medium text-muted-foreground mt-1.5">
+                  لم يُحدد مقدار بعد
+                </p>
+              )}
             </div>
 
             {!day.isReviewDay && (isLess || isMore) && (
@@ -273,9 +361,9 @@ export default function FlexibleEntryPanel({
                   : "bg-primary/10 text-primary border border-primary/20"
               }`}>
                 {isLess ? (
-                  <><BookOpen className="w-4 h-4 inline ml-1" /> تبقى {getDiffDisplay()}</>
+                  <><BookOpen className="w-4 h-4 inline me-1" /> تبقى {getDiffDisplay()}</>
                 ) : (
-                  <><Check className="w-4 h-4 inline ml-1" /> أنجزت {getDiffDisplay()} زيادة</>
+                  <><Check className="w-4 h-4 inline me-1" /> أنجزت {getDiffDisplay()} زيادة</>
                 )}
               </div>
             )}
@@ -292,12 +380,12 @@ export default function FlexibleEntryPanel({
               onClick={handleSkip}
               className="flex-1 rounded-2xl bg-accent/15 text-accent hover:bg-accent/25 font-semibold"
             >
-              <SkipForward className="w-4 h-4 ml-1.5" /> تخطي اليوم
+              <SkipForward className="w-4 h-4 me-1.5" /> تخطي اليوم
             </Button>
           )}
           {alreadyRecorded && (
             <Button onClick={handleUndo} className="flex-1 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/20 font-semibold">
-              <RotateCcw className="w-4 h-4 ml-1.5" /> تراجع
+              <RotateCcw className="w-4 h-4 me-1.5" /> تراجع
             </Button>
           )}
           <Button
@@ -305,7 +393,7 @@ export default function FlexibleEntryPanel({
             className="flex-1 rounded-2xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={calculatedVerses === 0}
           >
-            <Check className="w-4 h-4 ml-1.5" /> حفظ
+            <Check className="w-4 h-4 me-1.5" /> حفظ
           </Button>
         </DialogFooter>
       </DialogContent>

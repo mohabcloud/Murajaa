@@ -1,3 +1,4 @@
+// src/components/QuranInteractivePicker.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { getQuranData, getPageTexts, initQuranData, getSurahName } from "@/lib/quranData";
 import { toArabicNumbers } from "@/lib/utils";
@@ -9,6 +10,8 @@ export default function QuranInteractivePicker({
   targetEndPage = 604,
   planStartPage = 1,
   planEndPage = 604,
+  presetRange = null,
+  clearTrigger = 0,
   onSelectionChange,
 }) {
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,28 @@ export default function QuranInteractivePicker({
       setCurrentPage(startPage);
     }
   }, [loading, quranData, targetStartPage, planStartPage]);
+
+  // ✅ تطبيق النطاق المقترح عند الضغط على زر التعبئة التلقائية
+  useEffect(() => {
+    if (loading || !quranData || !presetRange?.triggerKey) return;
+    const sPage = Math.max(planStartPage, Math.min(planEndPage, presetRange.startPage || 1));
+    const ePage = Math.max(sPage, Math.min(planEndPage, presetRange.endPage || sPage));
+    const endTexts = getPageTexts(ePage);
+    const eVerseIdx = Math.max(0, endTexts.length - 1);
+
+    setStartSelection({ page: sPage, verseIndex: 0 });
+    setEndSelection({ page: ePage, verseIndex: eVerseIdx });
+    setCurrentPage(sPage);
+  }, [presetRange?.triggerKey, presetRange?.startPage, presetRange?.endPage, loading, quranData, planStartPage, planEndPage]);
+
+  // ✅ مسح التحديد تلقائياً عند إعادة الضغط لإلغاء التعبئة
+  useEffect(() => {
+    if (loading || !quranData || !clearTrigger) return;
+    const startPage = Math.max(planStartPage, Math.min(planEndPage, targetStartPage || planStartPage || 1));
+    setStartSelection({ page: startPage, verseIndex: 0 });
+    setEndSelection(null);
+    setCurrentPage(startPage);
+  }, [clearTrigger, loading, quranData, targetStartPage, planStartPage, planEndPage]);
 
   const calculateVersesBetween = useCallback(
     (startPage, startVerse, endPage, endVerse) => {
@@ -110,7 +135,6 @@ export default function QuranInteractivePicker({
       if (endPage > startPage || (endPage === startPage && endVerse >= startVerse)) {
         setEndSelection({ page: endPage, verseIndex: endVerse });
         const versesCount = calculateVersesBetween(startPage, startVerse, endPage, endVerse);
-        // ✅ استخدام الأرقام العربية في displayLabel
         onSelectionChange({
           type: "verses",
           startPage,
@@ -164,97 +188,117 @@ export default function QuranInteractivePicker({
   const isEndVerse = (verseIndex) => endSelection && currentPage === endSelection.page && verseIndex === endSelection.verseIndex;
 
   return (
-    // ✅ إزالة max-h-[70vh] overflow-y-auto لمنع ازدواج شريط التمرير داخل FlexibleEntryPanel
-    <div className="space-y-4 p-4 bg-card rounded-2xl border border-border/60">
-      <div className="flex flex-col items-center border-b border-border/40 pb-4">
-        <div className="flex items-center justify-between w-full">
-          <div className="text-lg font-bold text-foreground font-serif">{surahName || "القرآن الكريم"}</div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goToFirstPage} className="h-8 w-8 p-0">
+    <div className="space-y-3 p-0 border-0 bg-transparent sm:p-4 sm:bg-card sm:rounded-2xl sm:border sm:border-border/60 w-full max-w-full min-w-0 overflow-hidden">
+      {/* رأس التنقل بين صفحات المصحف */}
+      <div className="flex flex-col gap-2.5 border-b border-border/40 pb-3 min-w-0">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="text-base sm:text-lg font-bold text-foreground font-serif truncate leading-normal">
+            {surahName || "القرآن الكريم"}
+          </div>
+          <div className="text-[11px] text-muted-foreground shrink-0 flex items-center gap-1.5">
+            {pageData?.juzu ? <span>الجزء {toArabicNumbers(pageData.juzu)}</span> : null}
+            <span>·</span>
+            <span className="text-primary font-medium">
+              ص {toArabicNumbers(planStartPage)} - {toArabicNumbers(planEndPage)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between bg-muted/40 rounded-xl p-1.5 gap-1 w-full">
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={goToFirstPage} className="h-8 w-8 p-0 rounded-lg" title="أول صفحة">
               <ChevronsRight className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={handlePrevPage} disabled={currentPage <= (planStartPage || 1)} className="h-8 w-8 p-0">
+            <Button variant="outline" size="sm" onClick={handlePrevPage} disabled={currentPage <= (planStartPage || 1)} className="h-8 w-8 p-0 rounded-lg" title="الصفحة السابقة">
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <span className="text-sm font-semibold text-foreground min-w-[60px] text-center">ص {toArabicNumbers(currentPage)}</span>
-            <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage >= (planEndPage || 604)} className="h-8 w-8 p-0">
+          </div>
+
+          <span className="text-sm font-bold text-foreground px-2 text-center whitespace-nowrap">
+            ص {toArabicNumbers(currentPage)}
+          </span>
+
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage >= (planEndPage || 604)} className="h-8 w-8 p-0 rounded-lg" title="الصفحة التالية">
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={goToLastPage} className="h-8 w-8 p-0">
+            <Button variant="outline" size="sm" onClick={goToLastPage} className="h-8 w-8 p-0 rounded-lg" title="آخر صفحة">
               <ChevronsLeft className="w-4 h-4" />
             </Button>
           </div>
         </div>
-        <div className="text-xs text-muted-foreground mt-1">
-          {pageData?.juzu ? `الجزء ${toArabicNumbers(pageData.juzu)} · الحزب ${toArabicNumbers(pageData.hizb)}` : ""}
-          <span className="mx-2">|</span>
-          <span className="text-primary font-medium">
-            النطاق: {toArabicNumbers(planStartPage)} - {toArabicNumbers(planEndPage)}
-          </span>
-        </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-primary/5 rounded-xl p-3 border border-primary/10">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="font-medium text-muted-foreground">البداية:</span>
-          {startSelection ? (
-            <span className="text-primary font-semibold bg-primary/10 px-3 py-1 rounded-lg border border-primary/20">
-              ص {toArabicNumbers(startSelection.page)} آية {toArabicNumbers(startSelection.verseIndex + 1)}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">لم تُحدد</span>
-          )}
-          <span className="text-muted-foreground">→</span>
-          <span className="font-medium text-muted-foreground">النهاية:</span>
-          {endSelection ? (
-            <span className="text-accent font-semibold bg-accent/10 px-3 py-1 rounded-lg border border-accent/20">
-              ص {toArabicNumbers(endSelection.page)} آية {toArabicNumbers(endSelection.verseIndex + 1)}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">لم تُحدد</span>
-          )}
-          {startSelection && endSelection && (
-            <span className="text-primary font-bold bg-primary/10 px-3 py-1 rounded-lg border border-primary/20">
+      {/* مؤشر البداية والنهاية */}
+      <div className="flex flex-col gap-2 bg-primary/5 rounded-xl p-3 border border-primary/10 min-w-0">
+        <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+          <div className="bg-background/80 rounded-lg p-2 border border-border/50 flex flex-col items-center text-center gap-1 min-w-0">
+            <span className="text-[11px] font-medium text-muted-foreground">البداية</span>
+            {startSelection ? (
+              <span className="text-primary font-semibold bg-primary/10 px-2.5 py-0.5 rounded-md border border-primary/20 whitespace-nowrap">
+                ص {toArabicNumbers(startSelection.page)} آية {toArabicNumbers(startSelection.verseIndex + 1)}
+              </span>
+            ) : (
+              <span className="text-muted-foreground whitespace-nowrap">لم تُحدد</span>
+            )}
+          </div>
+
+          <div className="bg-background/80 rounded-lg p-2 border border-border/50 flex flex-col items-center text-center gap-1 min-w-0">
+            <span className="text-[11px] font-medium text-muted-foreground">النهاية</span>
+            {endSelection ? (
+              <span className="text-accent font-semibold bg-accent/10 px-2.5 py-0.5 rounded-md border border-accent/20 whitespace-nowrap">
+                ص {toArabicNumbers(endSelection.page)} آية {toArabicNumbers(endSelection.verseIndex + 1)}
+              </span>
+            ) : (
+              <span className="text-muted-foreground py-0.5 whitespace-nowrap">لم تُحدد</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-primary/10">
+          {startSelection && endSelection ? (
+            <span className="text-xs text-primary font-bold bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
               {endSelection.page === startSelection.page
                 ? `${toArabicNumbers(endSelection.verseIndex - startSelection.verseIndex + 1)} آيات`
                 : `${toArabicNumbers(calculateVersesBetween(startSelection.page, startSelection.verseIndex, endSelection.page, endSelection.verseIndex))} آيات`}
             </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">انقر على آية النهاية بالأسفل</span>
           )}
+
+          <Button variant="ghost" size="sm" onClick={clearSelection} className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs gap-1 ms-auto">
+            <X className="w-3 h-3" /> إعادة تعيين
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" onClick={clearSelection} className="text-muted-foreground hover:text-destructive h-8 px-3 text-xs gap-1">
-          <X className="w-3 h-3" /> إعادة تعيين
-        </Button>
       </div>
 
-      <div className="bg-background border rounded-2xl p-4 md:p-6 min-h-[300px]">
-        <div className="flex flex-col gap-1" dir="rtl">
+      {/* صندوق عرض الآيات */}
+      <div className="bg-background border rounded-2xl p-3 sm:p-5 max-h-[38vh] overflow-y-auto overflow-x-hidden min-w-0">
+        <div className="flex flex-col gap-1.5 pe-1 min-w-0" dir="rtl">
           {pageTexts.length > 0 ? (
             pageTexts.map((item, index) => {
               const inRange = isVerseInRange(index);
               const isStart = isStartVerse(index);
               const isEnd = isEndVerse(index);
 
-              let className = "w-full text-right px-3 py-1 rounded-lg transition-all cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/30 font-serif text-lg leading-[2.2] text-foreground";
-              if (isStart) className += " bg-primary/10 border-r-4 border-primary";
-              else if (isEnd) className += " bg-accent/10 border-r-4 border-accent";
+              let className = "w-full text-right px-2.5 py-1.5 rounded-lg transition-all cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/30 font-serif text-base sm:text-lg leading-[2.1] text-foreground break-words";
+              if (isStart) className += " bg-primary/10 border-s-4 border-primary";
+              else if (isEnd) className += " bg-accent/10 border-s-4 border-accent";
               else if (inRange) className += " bg-primary/5";
 
               return (
-                <button key={index} onClick={() => handleVerseClick(index)} className={className}>
-                  {item.text}
-                  <span className="text-base text-muted-foreground mr-1 font-serif">۝{toArabicNumbers(item.verseNumber)}</span>
+                <button key={index} type="button" onClick={() => handleVerseClick(index)} className={className}>
+                  <span>{item.text}</span>
+                  <span className="text-sm sm:text-base text-muted-foreground ms-1.5 font-serif inline-block">
+                    ۝{toArabicNumbers(item.verseNumber)}
+                  </span>
                 </button>
               );
             })
           ) : (
-            <p className="text-muted-foreground text-center">لا توجد آيات في هذه الصفحة</p>
+            <p className="text-muted-foreground text-center text-sm">لا توجد آيات في هذه الصفحة</p>
           )}
         </div>
-      </div>
-
-      <div className="text-center text-xs text-muted-foreground border-t border-border/40 pt-3">
-        <p>انقر على أي آية لتحديد النهاية. البداية محددة تلقائياً.</p>
-        <p className="text-primary/70 font-medium">الآيات المحددة تظهر بلون مميز</p>
       </div>
     </div>
   );

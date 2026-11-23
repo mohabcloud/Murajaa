@@ -13,24 +13,24 @@
 @layer base {
     :root {
         color-scheme: light;
-        /* ✅ ألوان ثيم المراجعة - الوضع الفاتح (مشتقة 100% من لوحة SplashScreen: #1A6E5A و #CAAE61 و #F5F0E1) */
-        --background: 45 38% 97%;
+        /* ✅ ثيم خطة المراجعة - الوضع الفاتح (عائلة الأخضر الزمردي بالكامل دون أي لون ذهبي) */
+        --background: 155 25% 97%;
         --foreground: 162 42% 14%;
-        --card: 45 35% 99%;
+        --card: 155 22% 99%;
         --card-foreground: 162 42% 14%;
-        --popover: 45 35% 99%;
+        --popover: 155 22% 99%;
         --popover-foreground: 162 42% 14%;
         --primary: 165 55% 30%;
         --primary-foreground: 0 0% 100%;
         --secondary: 162 20% 92%;
         --secondary-foreground: 162 35% 18%;
-        --muted: 45 24% 93%;
+        --muted: 158 18% 93%;
         
         /* 🎯 لون النصوص الثانوية في الوضع الفاتح */
         --muted-foreground: 162 15% 36%; 
         
-        /* ✅ الذهبي الرملي الدافئ (#CAAE61) من SplashScreen */
-        --accent: 44 50% 48%;
+        /* ✅ درجة زمردية ثانية متناغمة لـ (متبقي / ربط وتجميع / جزئي) */
+        --accent: 156 48% 36%;
         --accent-foreground: 0 0% 100%;
         --destructive: 0 72% 51%;
         --destructive-foreground: 0 0% 98%;
@@ -38,9 +38,9 @@
         --input: 160 16% 86%;
         --ring: 165 55% 30%;
         --chart-1: 165 55% 30%;
-        --chart-2: 44 50% 48%;
+        --chart-2: 156 48% 36%;
         --chart-3: 162 35% 42%;
-        --chart-4: 44 45% 62%;
+        --chart-4: 158 40% 52%;
         --chart-5: 165 30% 52%;
         --radius: 0.75rem;
         
@@ -60,42 +60,48 @@
         --sidebar-ring: 217.2 91.2% 59.8%;
     }
 
-    /* ✅ ثيم خطة الحفظ - الوضع الفاتح (مبني على ذهبي SplashScreen #CAAE61) */
+    /* ✅ ثيم خطة الحفظ - الوضع الفاتح (عائلة الذهبي الرملي والكهرماني بالكامل دون أي لون أخضر) */
     :root[data-plan-theme="memorization"] {
-        --background: 44 40% 97%;
-        --foreground: 38 30% 15%;
-        --card: 44 36% 99%;
-        --card-foreground: 38 30% 15%;
-        --popover: 44 36% 99%;
-        --popover-foreground: 38 30% 15%;
-        --primary: 42 58% 43%;
+        --background: 44 42% 97%;
+        --foreground: 36 32% 15%;
+        --card: 44 38% 99%;
+        --card-foreground: 36 32% 15%;
+        --popover: 44 38% 99%;
+        --popover-foreground: 36 32% 15%;
+        --primary: 42 62% 42%;
         --primary-foreground: 0 0% 100%;
-        --secondary: 44 28% 92%;
-        --secondary-foreground: 38 25% 20%;
-        --muted: 44 24% 93%;
-        --muted-foreground: 38 15% 38%;
-        --accent: 28 52% 45%;
+        --secondary: 44 30% 92%;
+        --secondary-foreground: 36 26% 20%;
+        --muted: 44 26% 93%;
+        --muted-foreground: 36 16% 38%;
+        /* ✅ درجة كهرمانية ذهبية ثانية متناغمة لـ (متبقي / تثبيت / جزئي) */
+        --accent: 32 62% 45%;
         --accent-foreground: 0 0% 100%;
-        --border: 42 22% 86%;
-        --input: 42 22% 86%;
-        --ring: 42 58% 43%;
+        --border: 42 24% 85%;
+        --input: 42 24% 85%;
+        --ring: 42 62% 42%;
+        --chart-1: 42 62% 42%;
+        --chart-2: 32 62% 45%;
+        --chart-3: 36 52% 52%;
+        --chart-4: 44 45% 62%;
+        --chart-5: 32 40% 48%;
     }
 
     .dark {
         /* ✅ تفعيل color-scheme: dark لمنع ظهور شريط التمرير باللون الأبيض في المتصفح */
         color-scheme: dark;
 
-        /* ✅ ألوان ثيم المراجعة - الوضع المظلم (مشتقة 100% من #1A6E5A و #1A4A3A و #CAAE61 و #F5F0E1) */
+        /* ✅ ثيم خطة المراجعة - الوضع المظلم (عائلة الأخضر الزمردي بالكامل دون أي لون ذهبي) */
         --background: 162 28% 7%;
-        --foreground: 45 42% 92%;
+        --foreground: 155 25% 92%;
         
         /* البطاقات */
         --card: 162 25% 10%;
-        --card-foreground: 45 42% 92%;
+        --card-foreground: 155 25% 92%;
         
         /* القوائم المنسدلة والبوب أوفر */
         --popover: 162 26% 9%;
-        --popover-foreground: 45 42% 92%;
+        --popover-foreground: 155 25% 92%;
         
         /* الألوان الأساسية */
         --primary: 165 48% 38%;
@@ -103,16 +109,16 @@
         
         /* العناصر الثانوية */
         --secondary: 162 20% 15%;
-        --secondary-foreground: 45 30% 88%;
+        --secondary-foreground: 155 22% 88%;
         
         /* العناصر الصامتة */
         --muted: 162 20% 15%;
         
         /* 🎯 لون النصوص الثانوية في الوضع المظلم */
-        --muted-foreground: 45 16% 64%; 
+        --muted-foreground: 158 14% 64%; 
         
-        /* ✅ الذهبي الرملي الدافئ (#CAAE61) مطابق تماماً لعنوان ونجوم SplashScreen */
-        --accent: 44 50% 56%;
+        /* ✅ درجة زمردية مضيئة متناغمة لـ (متبقي / ربط وتجميع / جزئي) */
+        --accent: 156 52% 52%;
         --accent-foreground: 0 0% 100%;
         
         /* ألوان التحذير والحدود */
@@ -126,9 +132,9 @@
         
         /* ألوان الرسوم البيانية */
         --chart-1: 165 48% 38%;
-        --chart-2: 44 50% 56%;
+        --chart-2: 156 52% 52%;
         --chart-3: 162 35% 48%;
-        --chart-4: 44 45% 65%;
+        --chart-4: 158 45% 60%;
         --chart-5: 165 30% 55%;
         
         /* ألوان الـ Sidebar */
@@ -142,25 +148,31 @@
         --sidebar-ring: 217.2 91.2% 59.8%;
     }
 
-    /* ✅ ثيم خطة الحفظ - الوضع المظلم (مشتق من ذهبي SplashScreen #CAAE61) */
+    /* ✅ ثيم خطة الحفظ - الوضع المظلم (عائلة الذهبي الرملي والكهرماني بالكامل دون أي لون أخضر) */
     .dark[data-plan-theme="memorization"] {
-        --background: 38 18% 7%;
+        --background: 38 20% 7%;
         --foreground: 45 42% 92%;
-        --card: 38 16% 10%;
+        --card: 38 17% 10%;
         --card-foreground: 45 42% 92%;
-        --popover: 38 17% 9%;
+        --popover: 38 18% 9%;
         --popover-foreground: 45 42% 92%;
-        --primary: 43 56% 45%;
+        --primary: 43 58% 46%;
         --primary-foreground: 0 0% 100%;
-        --secondary: 38 14% 15%;
-        --secondary-foreground: 45 25% 88%;
-        --muted: 38 14% 15%;
-        --muted-foreground: 42 14% 62%;
-        --accent: 28 50% 48%;
+        --secondary: 38 15% 15%;
+        --secondary-foreground: 45 28% 88%;
+        --muted: 38 15% 15%;
+        --muted-foreground: 42 15% 63%;
+        /* ✅ درجة كهرمانية ذهبية مضيئة متناغمة لـ (متبقي / تثبيت / جزئي) */
+        --accent: 34 68% 56%;
         --accent-foreground: 0 0% 100%;
-        --border: 40 16% 21%;
-        --input: 40 16% 21%;
-        --ring: 43 56% 45%;
+        --border: 40 18% 21%;
+        --input: 40 18% 21%;
+        --ring: 43 58% 46%;
+        --chart-1: 43 58% 46%;
+        --chart-2: 34 68% 56%;
+        --chart-3: 36 50% 52%;
+        --chart-4: 44 45% 65%;
+        --chart-5: 32 40% 50%;
     }
 }
 
@@ -255,6 +267,8 @@ input[type="date"] {
     direction: rtl !important;
     padding-left: 44px !important;
     padding-inline-end: 44px !important;
+    max-width: calc(100vw - 24px) !important;
+    box-sizing: border-box !important;
     transition: all 0.2s ease !important;
 }
 .murajaa-toast:hover {

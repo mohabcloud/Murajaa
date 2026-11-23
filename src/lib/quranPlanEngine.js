@@ -115,6 +115,123 @@ export function flexibleInputToVerses(input, startPage = 1) {
   return versesFromPages + (parseInt(input.verses || 0, 10) || 0);
 }
 
+// ✅ إيجاد رقم الصفحة المقابل لعدد تراكمي من الآيات ابتداءً من startPage
+function getPageAtVerseOffset(startPage, endPage, verseOffset) {
+  const map = getPagesMap();
+  let acc = 0;
+  for (let p = startPage; p <= endPage; p++) {
+    const vc = map[p]?.verseCount || 10;
+    if (acc + vc > verseOffset) {
+      return p;
+    }
+    acc += vc;
+  }
+  return endPage;
+}
+
+// ✅ حساب تاريخ الانتهاء وعدد الأيام بناءً على مقدار الورد اليومي المختار
+export function calculateEndDateByPace({
+  startDate,
+  startPage,
+  endPage,
+  paceUnit = "pages",
+  paceAmount = 1,
+  offDays = [],
+  vacationPattern = null,
+}) {
+  if (!startDate) return { error: "تاريخ البداية مطلوب." };
+  if (offDays.length === 7) {
+    return { error: "لا يمكن تحديد جميع أيام الأسبوع كإجازة." };
+  }
+
+  const safeAmount = Math.max(1, parseInt(paceAmount, 10) || 1);
+  const totalPages = Math.max(1, endPage - startPage + 1);
+  const totalVerses = getVersesBetween(startPage, endPage);
+
+  let requiredWorkDays = 1;
+  let pagesPerWorkDay = 1;
+  let versesPerWorkDay = null;
+
+  if (paceUnit === "verses") {
+    requiredWorkDays = Math.max(1, Math.ceil(totalVerses / safeAmount));
+    pagesPerWorkDay = totalPages / requiredWorkDays;
+    versesPerWorkDay = safeAmount;
+  } else {
+    const multiplier =
+      paceUnit === "juz" ? 20 :
+      paceUnit === "hizb" ? 10 :
+      paceUnit === "rub" ? 2.5 : 1;
+    pagesPerWorkDay = safeAmount * multiplier;
+    requiredWorkDays = Math.max(1, Math.ceil(totalPages / pagesPerWorkDay));
+  }
+
+  const offSet = new Set(offDays);
+  const vacationEnabled = !!(vacationPattern && vacationPattern.enabled);
+  const daysOn = vacationPattern?.daysOn || 2;
+  const daysOff = vacationPattern?.daysOff || 2;
+
+  let phase = 'review';
+  let daysInPhase = 0;
+  let workDaysFound = 0;
+  let totalDaysCount = 0;
+  let reviewDaysCount = 0;
+  let offDaysCount = 0;
+
+  const cur = parseLocal(startDate);
+  let calculatedEndDate = toLocalDateStr(cur);
+
+  while (workDaysFound < requiredWorkDays) {
+    // ✅ السماح بمدة تصل إلى ٢٠ عاماً لدعم الأوراد القليلة (مثل آية أو آيتين يومياً على كامل المصحف)
+    if (totalDaysCount > 7300) {
+      return { error: "المدة المحسوبة تتجاوز ٢٠ سنة. يرجى زيادة مقدار الورد اليومي." };
+    }
+
+    totalDaysCount++;
+    const dayOfWeek = cur.getDay();
+
+    if (offSet.has(dayOfWeek)) {
+      offDaysCount++;
+    } else if (vacationEnabled) {
+      if (phase === 'review') {
+        workDaysFound++;
+        daysInPhase++;
+        if (daysInPhase >= daysOn) {
+          phase = 'consolidation';
+          daysInPhase = 0;
+        }
+      } else {
+        reviewDaysCount++;
+        daysInPhase++;
+        if (daysInPhase >= daysOff) {
+          phase = 'review';
+          daysInPhase = 0;
+        }
+      }
+    } else {
+      workDaysFound++;
+    }
+
+    if (workDaysFound === requiredWorkDays) {
+      calculatedEndDate = toLocalDateStr(cur);
+      break;
+    }
+
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  const endDateObj = parseLocal(calculatedEndDate);
+  return {
+    endDate: calculatedEndDate,
+    endDayName: DAY_NAMES_AR[endDateObj.getDay()],
+    requiredWorkDays,
+    totalDays: totalDaysCount,
+    reviewDays: reviewDaysCount,
+    offDayCount: offDaysCount,
+    pagesPerWorkDay,
+    versesPerWorkDay,
+  };
+}
+
 // ✅ حساب نطاق الدورة السابقة الكاملة لكل يوم تثبيت/ربط
 function assignConsolidationRanges(days, fallbackStartPage, fallbackEndPage) {
   let cycleWorkDays = [];
@@ -128,11 +245,9 @@ function assignConsolidationRanges(days, fallbackStartPage, fallbackEndPage) {
     }
 
     if (!d.isReviewDay) {
-      // يوم حفظ/مراجعة أساسي ضمن الدورة الحالية
       cycleWorkDays.push(d);
       i++;
     } else {
-      // بداية كتلة أيام التثبيت/الربط المتتالية
       const blockIndices = [];
       while (i < days.length && (days[i].isReviewDay || days[i].isOff)) {
         if (days[i].isReviewDay) blockIndices.push(i);
@@ -151,7 +266,6 @@ function assignConsolidationRanges(days, fallbackStartPage, fallbackEndPage) {
 
         for (let b = 0; b < blockLen; b++) {
           const idx = blockIndices[b];
-          // إذا لم يُسجّل اليوم بعد، نوزع نطاق الدورة السابقة على أيام التثبيت
           if (days[idx].status === 'pending') {
             const pStart = cycleStartPage + Math.floor((b / blockLen) * totalCyclePages);
             const pEnd = Math.min(
@@ -173,7 +287,6 @@ function assignConsolidationRanges(days, fallbackStartPage, fallbackEndPage) {
         }
       }
 
-      // تصفير الدورة بعد انتهاء أيام التثبيت لبدء دورة جديدة
       cycleWorkDays = [];
     }
   }
@@ -182,6 +295,9 @@ function assignConsolidationRanges(days, fallbackStartPage, fallbackEndPage) {
 export function createPlan({
   name,
   planType = "review",
+  planningMode = "by_date",
+  paceUnit = "pages",
+  paceAmount = 2,
   startDate,
   endDate,
   startPage,
@@ -190,8 +306,8 @@ export function createPlan({
   vacationPattern = null,
 }) {
   try {
-    if (!startDate || !endDate) {
-      return { error: "تاريخ البداية والنهاية مطلوبان." };
+    if (!startDate) {
+      return { error: "تاريخ البداية مطلوب." };
     }
     if (startPage > endPage) {
       return { error: "صفحة البداية يجب أن تكون قبل صفحة النهاية." };
@@ -200,9 +316,36 @@ export function createPlan({
       return { error: "لا يمكن تحديد جميع أيام الأسبوع كإجازة." };
     }
 
+    let resolvedEndDate = endDate;
+    let pacePagesPerDay = null;
+    let paceVersesPerDay = null;
+
+    if (planningMode === "by_pace") {
+      const paceCalc = calculateEndDateByPace({
+        startDate,
+        startPage,
+        endPage,
+        paceUnit,
+        paceAmount,
+        offDays,
+        vacationPattern,
+      });
+      if (paceCalc.error) {
+        return { error: paceCalc.error };
+      }
+      resolvedEndDate = paceCalc.endDate;
+      if (paceUnit === "verses") {
+        paceVersesPerDay = paceCalc.versesPerWorkDay;
+      } else {
+        pacePagesPerDay = paceCalc.pagesPerWorkDay;
+      }
+    } else if (!resolvedEndDate) {
+      return { error: "تاريخ البداية والنهاية مطلوبان." };
+    }
+
     const totalVerses = getVersesBetween(startPage, endPage);
     const totalPages = endPage - startPage + 1;
-    const totalDays = daysBetween(startDate, endDate);
+    const totalDays = daysBetween(startDate, resolvedEndDate);
 
     let daysOn = 0;
     let daysOff = 0;
@@ -215,14 +358,17 @@ export function createPlan({
 
     const result = generateSchedule({
       startDate,
-      endDate,
+      endDate: resolvedEndDate,
       startPage,
       endPage,
       offDays: new Set(offDays),
       totalPages,
+      totalVerses,
       vacationEnabled,
       daysOn,
       daysOff,
+      pacePagesPerDay,
+      paceVersesPerDay,
     });
 
     if (result.error) {
@@ -243,16 +389,19 @@ export function createPlan({
       return { error: `لا توجد ${labels.workDaysPlural} كافية.` };
     }
 
-    const dailyVerses = Math.ceil(totalVerses / workDays);
-    const dailyPages = Math.ceil(totalPages / workDays);
+    const dailyVerses = paceVersesPerDay || Math.ceil(totalVerses / workDays);
+    const dailyPages = pacePagesPerDay ? Math.ceil(pacePagesPerDay) : Math.ceil(totalPages / workDays);
 
     const plan = {
       id: 'plan_' + Date.now(),
       name,
       planType,
+      planningMode,
+      paceUnit: planningMode === "by_pace" ? paceUnit : null,
+      paceAmount: planningMode === "by_pace" ? Math.max(1, parseInt(paceAmount, 10) || 1) : null,
       vacationPattern: vacationEnabled ? { enabled: true, daysOn, daysOff } : { enabled: false, daysOn: 2, daysOff: 2 },
       startDate,
-      endDate,
+      endDate: resolvedEndDate,
       startPage,
       endPage,
       totalVerses,
@@ -295,7 +444,20 @@ export function getLocalToday() {
   return toLocalDateStr(now);
 }
 
-function generateSchedule({ startDate, endDate, startPage, endPage, offDays, totalPages, vacationEnabled, daysOn, daysOff }) {
+function generateSchedule({
+  startDate,
+  endDate,
+  startPage,
+  endPage,
+  offDays,
+  totalPages,
+  totalVerses,
+  vacationEnabled,
+  daysOn,
+  daysOff,
+  pacePagesPerDay = null,
+  paceVersesPerDay = null,
+}) {
   const cur = parseLocal(startDate);
   const end = parseLocal(endDate);
 
@@ -371,17 +533,43 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     return { error: "لا توجد أيام عمل كافية في هذه الفترة", schedule: days };
   }
 
+  const resolvedTotalVerses = totalVerses || getVersesBetween(startPage, endPage);
+
   for (let i = 0; i < totalReviewDays; i++) {
     const idx = reviewDaysIndices[i];
-    const progress = (i + 1) / totalReviewDays;
-    const endPageForDay = Math.min(endPage, startPage + Math.round(progress * totalPages) - 1);
-    const startPageForDay = (i === 0) ? startPage : Math.min(endPage, startPage + Math.round((i) / totalReviewDays * totalPages));
-    const realStart = Math.min(startPageForDay, endPageForDay);
-    const realEnd = Math.max(startPageForDay, endPageForDay);
-    const verses = getVersesBetween(realStart, realEnd);
-    days[idx].targetVerses = verses;
-    days[idx].targetStartPage = realStart;
-    days[idx].targetEndPage = realEnd;
+
+    if (paceVersesPerDay && paceVersesPerDay > 0) {
+      const startVerseOffset = i * paceVersesPerDay;
+      const remainingForPlan = Math.max(0, resolvedTotalVerses - startVerseOffset);
+      const versesForDay = Math.min(paceVersesPerDay, remainingForPlan);
+      const endVerseOffset = Math.max(startVerseOffset, startVerseOffset + versesForDay - 1);
+
+      const realStart = getPageAtVerseOffset(startPage, endPage, startVerseOffset);
+      const realEnd = getPageAtVerseOffset(startPage, endPage, endVerseOffset);
+
+      days[idx].targetVerses = versesForDay;
+      days[idx].targetStartPage = realStart;
+      days[idx].targetEndPage = realEnd;
+    } else if (pacePagesPerDay && pacePagesPerDay > 0) {
+      const startOffset = Math.floor(i * pacePagesPerDay);
+      const endOffset = Math.min(totalPages - 1, Math.floor((i + 1) * pacePagesPerDay) - 1);
+      const realStart = Math.min(endPage, startPage + startOffset);
+      const realEnd = Math.min(endPage, Math.max(realStart, startPage + endOffset));
+
+      days[idx].targetVerses = getVersesBetween(realStart, realEnd);
+      days[idx].targetStartPage = realStart;
+      days[idx].targetEndPage = realEnd;
+    } else {
+      const progress = (i + 1) / totalReviewDays;
+      const endPageForDay = Math.min(endPage, startPage + Math.round(progress * totalPages) - 1);
+      const startPageForDay = (i === 0) ? startPage : Math.min(endPage, startPage + Math.round((i) / totalReviewDays * totalPages));
+      const realStart = Math.min(startPageForDay, endPageForDay);
+      const realEnd = Math.max(startPageForDay, endPageForDay);
+
+      days[idx].targetVerses = getVersesBetween(realStart, realEnd);
+      days[idx].targetStartPage = realStart;
+      days[idx].targetEndPage = realEnd;
+    }
   }
 
   for (let d of days) {
@@ -392,13 +580,12 @@ function generateSchedule({ startDate, endDate, startPage, endPage, offDays, tot
     }
   }
 
-  // ✅ تجميع نطاق الدورة السابقة كاملة لأيام التثبيت/الربط
   assignConsolidationRanges(days, startPage, endPage);
 
   return { schedule: days };
 }
 
-// ✅ إعادة التوزيع التلقائي للورد المتبقي وتحويل الأيام الفائتة إلى skipped
+// ✅ إعادة التوزيع التلقائي للورد المتبقي وتحويل الأيام الفائتة إلى skipped (الخيار أ: تثبيت تاريخ النهاية)
 export function syncPlanSchedule(plan) {
   if (!plan || !Array.isArray(plan.schedule)) {
     return { plan, changed: false };
@@ -407,7 +594,6 @@ export function syncPlanSchedule(plan) {
   const today = getLocalToday();
   let changed = false;
 
-  // 1. تحويل أيام العمل الماضية (الأساسية والتثبيت) التي بقيت pending إلى skipped
   const updatedSchedule = plan.schedule.map((day) => {
     if (day.date < today && !day.isOff && day.status === 'pending') {
       changed = true;
@@ -416,7 +602,6 @@ export function syncPlanSchedule(plan) {
     return { ...day };
   });
 
-  // 2. حساب المنجز الفعلي من الحفظ/المراجعة الأساسية فقط (لا نخلط معه آيات التثبيت)
   const totalCompletedVerses = updatedSchedule.reduce(
     (sum, d) => sum + (!d.isReviewDay ? (d.completedVerses || 0) : 0),
     0
@@ -424,15 +609,16 @@ export function syncPlanSchedule(plan) {
   const totalPlanVerses = plan.totalVerses || getVersesBetween(plan.startPage, plan.endPage);
   const totalPlanPages = plan.totalPages || (plan.endPage - plan.startPage + 1);
 
+  const remainingVerses = Math.max(0, totalPlanVerses - totalCompletedVerses);
   const completedPagesCount = totalCompletedVerses > 0
     ? Math.min(totalPlanPages, versesToPagesCount(totalCompletedVerses, plan.startPage))
     : 0;
+  // ✅ ضمان بقاء صفحة واحدة على الأقل طالما تبقّت آيات لم تُنجَز بعد
+  const remainingPages = remainingVerses > 0
+    ? Math.max(1, totalPlanPages - completedPagesCount)
+    : 0;
+  const nextStartPage = getPageAtVerseOffset(plan.startPage, plan.endPage, totalCompletedVerses);
 
-  const remainingVerses = Math.max(0, totalPlanVerses - totalCompletedVerses);
-  const remainingPages = Math.max(0, totalPlanPages - completedPagesCount);
-  const nextStartPage = Math.min(plan.endPage, plan.startPage + completedPagesCount);
-
-  // 3. تحديد أيام الحفظ/المراجعة القادمة المتبقية (pending فقط)
   const upcomingReviewIndices = updatedSchedule
     .map((d, idx) => (!d.isOff && !d.isReviewDay && d.status === 'pending' && d.date >= today ? idx : -1))
     .filter((i) => i >= 0);
@@ -443,7 +629,7 @@ export function syncPlanSchedule(plan) {
   if (upcomingReviewIndices.length > 0) {
     const count = upcomingReviewIndices.length;
 
-    if (remainingVerses === 0 || remainingPages === 0) {
+    if (remainingVerses === 0) {
       newDailyPages = 0;
       newDailyVerses = 0;
       for (const idx of upcomingReviewIndices) {
@@ -451,6 +637,34 @@ export function syncPlanSchedule(plan) {
         updatedSchedule[idx].targetVerses = 0;
         updatedSchedule[idx].targetStartPage = null;
         updatedSchedule[idx].targetEndPage = null;
+      }
+    } else if (plan.planningMode === "by_pace" && plan.paceUnit === "verses" && plan.paceAmount > 0) {
+      // ✅ الحفاظ على التوزيع الدقيق بالآيات لخطط الورد اليومي بالآيات
+      newDailyVerses = Math.ceil(remainingVerses / count);
+      newDailyPages = Math.max(1, Math.ceil(remainingPages / count));
+
+      for (let i = 0; i < count; i++) {
+        const idx = upcomingReviewIndices[i];
+        const startVerseOffset = totalCompletedVerses + Math.round((i / count) * remainingVerses);
+        const endVerseOffset = i === count - 1
+          ? totalPlanVerses - 1
+          : Math.max(startVerseOffset, totalCompletedVerses + Math.round(((i + 1) / count) * remainingVerses) - 1);
+
+        const versesForDay = Math.max(1, endVerseOffset - startVerseOffset + 1);
+        const realStart = getPageAtVerseOffset(plan.startPage, plan.endPage, startVerseOffset);
+        const realEnd = getPageAtVerseOffset(plan.startPage, plan.endPage, endVerseOffset);
+
+        if (
+          updatedSchedule[idx].targetVerses !== versesForDay ||
+          updatedSchedule[idx].targetStartPage !== realStart ||
+          updatedSchedule[idx].targetEndPage !== realEnd
+        ) {
+          changed = true;
+        }
+
+        updatedSchedule[idx].targetVerses = versesForDay;
+        updatedSchedule[idx].targetStartPage = realStart;
+        updatedSchedule[idx].targetEndPage = realEnd;
       }
     } else {
       newDailyPages = Math.ceil(remainingPages / count);
@@ -483,7 +697,6 @@ export function syncPlanSchedule(plan) {
     }
   }
 
-  // 4. تحديث نطاقات أيام التثبيت/الربط القادمة بناءً على الدورة السابقة لكل منها
   const beforeConsolidation = JSON.stringify(updatedSchedule.map((d) => [d.targetStartPage, d.targetEndPage, d.targetVerses]));
   assignConsolidationRanges(updatedSchedule, plan.startPage, plan.endPage);
   const afterConsolidation = JSON.stringify(updatedSchedule.map((d) => [d.targetStartPage, d.targetEndPage, d.targetVerses]));
@@ -563,7 +776,6 @@ export function recordDayProgressFlexible(plan, dateStr, input, note = "") {
     ...plan,
     schedule: plan.schedule.map(day => {
       if (day.date === dateStr) {
-        // في يوم التثبيت، قد يختار المستخدم أي صفحة في المصحف الكامل (١-٦٠٤)
         const refStartPage = day.isReviewDay
           ? (input.customStartPage || day.targetStartPage || 1)
           : (day.targetStartPage || plan.startPage);
@@ -574,7 +786,6 @@ export function recordDayProgressFlexible(plan, dateStr, input, note = "") {
           : (completed > 0 ? 'completed' : 'pending');
 
         if (day.isReviewDay) {
-          // ✅ فصل إنجاز التثبيت عن تقدم الصفحات الجديدة
           return {
             ...day,
             completedVerses: 0,

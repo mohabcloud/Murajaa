@@ -71,11 +71,20 @@ export default function Home() {
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveLoading, setDriveLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // ✅ تتبع نوع الخطة أثناء الإنشاء أو التعديل لتفعيل ثيمها الخاص فوراً
   const [draftPlanType, setDraftPlanType] = useState("review");
 
   const driveTimeoutRef = useRef(null);
   const mobileImportInputRef = useRef(null);
 
+  // ✅ التمرير التلقائي إلى بداية الصفحة بعد تبديل الواجهة (مثل إنشاء خطة جديدة)
+  const scrollToPageTop = () => {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  };
+
+  // ✅ تحديد الثيم النشط بدقة: ثيم المراجعة الزمردي لخطط المراجعة، وثيم الحفظ الذهبي لخطط الحفظ
   const currentThemeType = (showCreateForm || isEditSheetOpen)
     ? draftPlanType
     : (activePlan?.planType || "review");
@@ -117,7 +126,6 @@ export default function Home() {
         showCustomToast('success', 'تمت المزامنة', 'تم رفع بياناتك المحلية إلى السحابة.');
       }
     } catch (error) {
-      // ✅ تحديث حالة السحابة في الواجهة إذا انتهت صلاحية الجلسة (401)
       setDriveConnected(checkSignedIn());
       showCustomToast('error', 'فشلت المزامنة', error.message || 'حدث خطأ');
     } finally {
@@ -136,7 +144,6 @@ export default function Home() {
             await syncFromDrive();
             reloadPlans();
           } catch (syncError) {
-            // ✅ مزامنة حالة السحابة إذا تبين أن الرمز منتهي الصلاحية
             setDriveConnected(checkSignedIn());
             if (!syncError?.isAuthExpired) {
               console.warn('⚠️ Auto-sync failed:', syncError);
@@ -238,6 +245,7 @@ export default function Home() {
     setAllPlans(prev => [...prev, saved]);
     setActivePlan(saved);
     setShowCreateForm(false);
+    scrollToPageTop();
     showCustomToast('success', 'تم إنشاء الخطة بنجاح', `الخطة "${saved.name}" جاهزة للبدء.`);
   };
 
@@ -258,6 +266,7 @@ export default function Home() {
     if (updated.length === 0) {
       setDraftPlanType("review");
       setShowCreateForm(true);
+      scrollToPageTop();
     }
     showCustomToast('success', 'تم حذف الخطة', planToDelete ? `تم حذف "${planToDelete.name}" بنجاح.` : 'تم الحذف بنجاح.');
   };
@@ -271,10 +280,14 @@ export default function Home() {
     setEditingPlan(null);
     setDraftPlanType("review");
     setShowCreateForm(true);
+    scrollToPageTop();
   };
 
   const handleCancelCreate = () => {
-    if (allPlans.length > 0) setShowCreateForm(false);
+    if (allPlans.length > 0) {
+      setShowCreateForm(false);
+      scrollToPageTop();
+    }
     setIsEditSheetOpen(false);
     setEditingPlan(null);
   };
@@ -503,7 +516,6 @@ export default function Home() {
               />
               <DropdownMenu dir="rtl">
                 <DropdownMenuTrigger asChild>
-                  {/* ✅ إزالة التركيز قبل فتح القائمة لمنع تحذير aria-hidden في المتصفح */}
                   <button
                     type="button"
                     onPointerDown={(e) => e.currentTarget.blur()}

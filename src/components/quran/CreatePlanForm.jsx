@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   BookOpen, Calendar, Hash, Coffee, Sparkles, Layers, Type, Info,
-  ChevronDown, Search, Pencil, BookmarkCheck,
+  ChevronDown, Search, Pencil, BookmarkCheck, ArrowLeft, Gauge,
 } from "lucide-react";
 import {
-  createPlan, mergePlanWithProgress, smartQuranDisplay, getLocalToday, getPlanLabels,
+  createPlan, calculateEndDateByPace, mergePlanWithProgress, smartQuranDisplay, getLocalToday, getPlanLabels, formatArabicDate,
 } from "@/lib/quranPlanEngine";
 import {
   getVersesBetween, getQuranData, getSurahList, getSurahVersesCount,
@@ -23,15 +23,15 @@ import {
 import { ArabicDatePicker } from "@/components/ui/arabic-date-picker";
 
 const SELECT_TRIGGER_CLASSES =
-  "w-full h-10 rounded-xl border-input px-3 text-right leading-normal text-base flex items-center gap-2 " +
+  "w-full h-10 rounded-xl border-input px-3 text-right leading-normal text-sm sm:text-base flex items-center gap-2 " +
   "text-foreground transition-colors duration-150 " +
   "hover:border-primary " +
   "data-[state=open]:border-primary";
 
 const SURAH_PICKER_CLASSES =
-  "w-full h-10 px-2.5 sm:px-3 text-sm rounded-xl border border-input bg-transparent " +
-  "flex items-center justify-between gap-2 " +
-  "text-base font-normal text-foreground " +
+  "w-full h-10 px-2 sm:px-3 rounded-xl border border-input bg-transparent " +
+  "flex items-center justify-between gap-1 sm:gap-2 " +
+  "text-sm sm:text-base font-normal text-foreground " +
   "transition-colors duration-150 " +
   "hover:border-primary " +
   "data-[state=open]:border-primary";
@@ -56,6 +56,15 @@ const toArabic = (num) => {
   if (num === undefined || num === null) return "";
   return num.toString().split("").map((d) => arabicDigits[parseInt(d)]).join("");
 };
+
+function formatArabicDaysText(count) {
+  if (count === 1) return "يوم واحد";
+  if (count === 2) return "يومان";
+  const ar = toArabic(count);
+  const mod100 = count % 100;
+  if (mod100 >= 3 && mod100 <= 10) return `${ar} أيام`;
+  return `${ar} يوماً`;
+}
 
 const normalizeNumber = (text) => {
   const map = {
@@ -139,6 +148,9 @@ export default function CreatePlanForm({
   const today = useMemo(() => getLocalToday(), []);
 
   const [planType, setPlanType] = useState(() => initialPlan?.planType || "review");
+  const [planningMode, setPlanningMode] = useState(() => initialPlan?.planningMode || "by_date");
+  const [paceUnit, setPaceUnit] = useState(() => initialPlan?.paceUnit || "pages");
+  const [paceAmount, setPaceAmount] = useState(() => initialPlan?.paceAmount || 2);
 
   useEffect(() => {
     if (onPlanTypeChange) onPlanTypeChange(planType);
@@ -217,11 +229,12 @@ export default function CreatePlanForm({
   const [previewSignature, setPreviewSignature] = useState(null);
 
   const formSignature = useMemo(() => JSON.stringify({
-    name: formData.name, planType, startDate: formData.startDate, endDate: formData.endDate,
+    name: formData.name, planType, planningMode, paceUnit, paceAmount,
+    startDate: formData.startDate, endDate: formData.endDate,
     startPage: formData.startPage, endPage: formData.endPage,
     offDays: [...formData.offDays].sort((a, b) => a - b),
     vacationEnabled, daysOn, daysOff,
-  }), [formData, planType, vacationEnabled, daysOn, daysOff]);
+  }), [formData, planType, planningMode, paceUnit, paceAmount, vacationEnabled, daysOn, daysOff]);
 
   const hasPreview = preview !== null && previewSignature === formSignature;
 
@@ -352,6 +365,22 @@ export default function CreatePlanForm({
     });
   }, [calculatePages]);
 
+  const paceSummary = useMemo(() => {
+    if (planningMode !== "by_pace" || !quranData || !formData.startDate) return null;
+    if (formData.offDays.length === 7) return null;
+    const vacationPattern = vacationEnabled ? { enabled: true, daysOn, daysOff } : null;
+    const res = calculateEndDateByPace({
+      startDate: formData.startDate,
+      startPage: formData.startPage,
+      endPage: formData.endPage,
+      paceUnit,
+      paceAmount: Math.max(1, parseInt(paceAmount, 10) || 1),
+      offDays: formData.offDays,
+      vacationPattern,
+    });
+    return res.error ? null : res;
+  }, [planningMode, quranData, formData.startDate, formData.startPage, formData.endPage, formData.offDays, paceUnit, paceAmount, vacationEnabled, daysOn, daysOff]);
+
   const handleOffDayToggle = (dayValue) => {
     setFormData((prev) => ({
       ...prev,
@@ -371,12 +400,22 @@ export default function CreatePlanForm({
     const { start, end } = calculatePages();
     setFormData((prev) => ({ ...prev, startPage: start, endPage: end }));
     const name = formData.name.trim();
-    const startDate = formData.startDate, endDate = formData.endDate;
+    const startDate = formData.startDate;
     const offDays = formData.offDays, startPage = start, endPage = end;
 
     if (!name) { setError("يرجى إدخال اسم للخطة"); return; }
-    if (!startDate || !endDate) { setError("يرجى تحديد تاريخ البداية والنهاية"); return; }
-    if (new Date(endDate) <= new Date(startDate)) { setError("تاريخ النهاية يجب أن يكون بعد تاريخ البداية"); return; }
+    if (!startDate) { setError("يرجى تحديد تاريخ البداية"); return; }
+
+    if (planningMode === "by_date") {
+      if (!formData.endDate) { setError("يرجى تحديد تاريخ البداية والنهاية"); return; }
+      if (new Date(formData.endDate) <= new Date(startDate)) { setError("تاريخ النهاية يجب أن يكون بعد تاريخ البداية"); return; }
+    } else {
+      if (!paceAmount || parseInt(paceAmount, 10) < 1) {
+        setError("يرجى إدخال مقدار الورد اليومي (١ على الأقل)");
+        return;
+      }
+    }
+
     if (startPage > endPage) { setError("صفحة البداية يجب أن تكون قبل صفحة النهاية أو مساوية لها"); return; }
     if (offDays.length === 7) {
       setError("لا يمكن تحديد جميع أيام الأسبوع كإجازة. يُرجى استخدام نظام التناوب أدناه.");
@@ -385,7 +424,19 @@ export default function CreatePlanForm({
 
     const vacationPattern = vacationEnabled ? { enabled: true, daysOn, daysOff } : null;
     try {
-      const newPlan = createPlan({ name, planType, startDate, endDate, startPage, endPage, offDays, vacationPattern });
+      const newPlan = createPlan({
+        name,
+        planType,
+        planningMode,
+        paceUnit,
+        paceAmount: Math.max(1, parseInt(paceAmount, 10) || 1),
+        startDate,
+        endDate: formData.endDate,
+        startPage,
+        endPage,
+        offDays,
+        vacationPattern,
+      });
       if (!newPlan) { setError("فشل إنشاء الخطة: لم يتم إرجاع أي بيانات."); setPreviewSignature(null); return; }
       if (newPlan.error) { setError(newPlan.error); setPreviewSignature(null); return; }
 
@@ -399,7 +450,8 @@ export default function CreatePlanForm({
 
       setPreview(finalPlan);
       setPreviewSignature(JSON.stringify({
-        name: formData.name, planType, startDate: formData.startDate, endDate: formData.endDate,
+        name: formData.name, planType, planningMode, paceUnit, paceAmount,
+        startDate: formData.startDate, endDate: formData.endDate,
         startPage: start, endPage: end,
         offDays: [...formData.offDays].sort((a, b) => a - b),
         vacationEnabled, daysOn, daysOff,
@@ -448,7 +500,7 @@ export default function CreatePlanForm({
             className={SURAH_PICKER_CLASSES}
             dir="rtl"
           >
-            <span className="truncate flex-1 text-right leading-normal pe-1.5 font-normal">
+            <span className="truncate flex-1 text-right leading-normal pe-0.5 font-normal">
               {selectedSurah ? `${toArabic(selectedSurah.id)} - ${selectedSurah.name}` : placeholder}
             </span>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50 stroke-[2]" />
@@ -457,7 +509,7 @@ export default function CreatePlanForm({
         <PopoverContent className="w-full p-0 rounded-xl" align="start">
           <div className="p-2">
             <div className="flex items-center border border-input rounded-xl px-3 py-1 transition-colors duration-150 hover:border-primary focus-within:border-primary">
-              <Search className="h-4 w-4 text-muted-foreground ml-2 shrink-0 stroke-[2]" />
+              <Search className="h-4 w-4 text-muted-foreground me-2 shrink-0 stroke-[2]" />
               <input
                 placeholder="ابحث عن سورة (رقم أو اسم)..."
                 value={search}
@@ -517,40 +569,40 @@ export default function CreatePlanForm({
             <button
               type="button"
               onClick={() => handleSelectPlanType("review")}
-              className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all duration-200 flex items-center gap-2.5 sm:gap-3 min-w-0 ${
+              className={`p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-right gap-2 sm:gap-3 min-w-0 ${
                 planType === "review"
                   ? "bg-primary/10 border-primary text-foreground shadow-sm"
                   : "bg-background border-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                 planType === "review" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}>
                 <BookOpen className="w-4 h-4" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-xs sm:text-sm leading-normal whitespace-nowrap">خطة مراجعة</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate pe-1">مراجعة المحفوظ</p>
+              <div className="min-w-0 w-full sm:flex-1">
+                <p className="font-bold text-sm leading-normal">خطة مراجعة</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-normal">مراجعة المحفوظ</p>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => handleSelectPlanType("memorization")}
-              className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all duration-200 flex items-center gap-2.5 sm:gap-3 min-w-0 ${
+              className={`p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-right gap-2 sm:gap-3 min-w-0 ${
                 planType === "memorization"
                   ? "bg-primary/10 border-primary text-foreground shadow-sm"
                   : "bg-background border-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                 planType === "memorization" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}>
                 <BookmarkCheck className="w-4 h-4" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-xs sm:text-sm leading-normal whitespace-nowrap">خطة حفظ</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate pe-1">حفظ جديد وتثبيت</p>
+              <div className="min-w-0 w-full sm:flex-1">
+                <p className="font-bold text-sm leading-normal">خطة حفظ</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-normal">حفظ جديد وتثبيت</p>
               </div>
             </button>
           </div>
@@ -749,7 +801,6 @@ export default function CreatePlanForm({
           )}
 
           <div className="text-center mt-3">
-            {/* ✅ مسافة موحدة (gap-1.5) مع زر w-4 h-4 */}
             <div className="flex items-center justify-center gap-1.5">
               <p className="text-sm font-bold text-foreground">{smartQuranDisplay(versesEstimate, formData.startPage)}</p>
               <QuranDetailsPopover verses={versesEstimate} startPage={formData.startPage} />
@@ -762,36 +813,124 @@ export default function CreatePlanForm({
 
         <div className="border-t border-border/40" />
 
-        {/* الفترة الزمنية */}
+        {/* الفترة الزمنية أو الورد اليومي */}
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
-            <h3 className="font-semibold text-foreground">الفترة الزمنية</h3>
+          <div className="flex items-center gap-2 mb-3">
+            {planningMode === "by_pace" ? (
+              <Gauge className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
+            ) : (
+              <Calendar className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
+            )}
+            <h3 className="font-semibold text-foreground">
+              {planningMode === "by_pace" ? "البداية ومقدار الورد اليومي" : "الفترة الزمنية"}
+            </h3>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ البداية</Label>
-              <MobileWrapper>
-                <ArabicDatePicker
-                  value={formData.startDate}
-                  onChange={(date) => setFormData((prev) => ({ ...prev, startDate: date }))}
-                  placeholder="تاريخ البداية"
-                  className="w-full"
-                />
-              </MobileWrapper>
-            </div>
-            <div>
-              <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ النهاية</Label>
-              <MobileWrapper>
-                <ArabicDatePicker
-                  value={formData.endDate}
-                  onChange={(date) => setFormData((prev) => ({ ...prev, endDate: date }))}
-                  placeholder="تاريخ النهاية"
-                  className="w-full"
-                />
-              </MobileWrapper>
-            </div>
+
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-muted/50 border border-border/50 mb-4">
+            <button
+              type="button"
+              onClick={() => setPlanningMode("by_date")}
+              className={`py-2 px-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                planningMode === "by_date"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              تحديد تاريخ النهاية
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlanningMode("by_pace")}
+              className={`py-2 px-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                planningMode === "by_pace"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              تحديد الورد اليومي
+            </button>
           </div>
+
+          {planningMode === "by_date" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ البداية</Label>
+                <MobileWrapper>
+                  <ArabicDatePicker
+                    value={formData.startDate}
+                    onChange={(date) => setFormData((prev) => ({ ...prev, startDate: date }))}
+                    placeholder="تاريخ البداية"
+                    className="w-full"
+                  />
+                </MobileWrapper>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ النهاية</Label>
+                <MobileWrapper>
+                  <ArabicDatePicker
+                    value={formData.endDate}
+                    onChange={(date) => setFormData((prev) => ({ ...prev, endDate: date }))}
+                    placeholder="تاريخ النهاية"
+                    className="w-full"
+                  />
+                </MobileWrapper>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <Label className="text-sm text-muted-foreground mb-1.5 block">تاريخ البداية</Label>
+                  <MobileWrapper>
+                    <ArabicDatePicker
+                      value={formData.startDate}
+                      onChange={(date) => setFormData((prev) => ({ ...prev, startDate: date }))}
+                      placeholder="تاريخ البداية"
+                      className="w-full"
+                    />
+                  </MobileWrapper>
+                </div>
+                <div>
+                  <Label className="text-sm text-muted-foreground mb-1.5 block">
+                    مقدار {labels.workNoun} اليومي
+                  </Label>
+                  {/* ✅ اختيار الوحدة (الحقول) إلى اليمين وإدخال الكمية إلى اليسار */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={paceUnit} onValueChange={setPaceUnit}>
+                      <SelectTrigger dir="rtl" className={SELECT_TRIGGER_CLASSES}>
+                        <SelectValue placeholder="الوحدة" />
+                      </SelectTrigger>
+                      <SelectContent dir="rtl" position="popper" align="start" className="text-base">
+                        <SelectItem value="pages">صفحات</SelectItem>
+                        <SelectItem value="rub">أرباع</SelectItem>
+                        <SelectItem value="hizb">أحزاب</SelectItem>
+                        <SelectItem value="juz">أجزاء</SelectItem>
+                        <SelectItem value="verses">آيات</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <ArabicNumberInput
+                      value={paceAmount}
+                      onChange={(val) => setPaceAmount(val === "" ? "" : Math.max(1, val))}
+                      placeholder="الكمية"
+                      textAlign="center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {paceSummary && (
+                <div className="bg-primary/5 border border-primary/15 rounded-xl p-3.5 text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">تاريخ الانتهاء المتوقع</p>
+                  <p className="text-base font-bold text-primary">
+                    {paceSummary.endDayName} · {formatArabicDate(paceSummary.endDate, { includeYear: true })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    خلال {formatArabicDaysText(paceSummary.totalDays)} (منها {formatArabicDaysText(paceSummary.requiredWorkDays)} للورد)
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="border-t border-border/40" />
@@ -800,7 +939,6 @@ export default function CreatePlanForm({
         <div>
           <div className="flex items-center gap-2 mb-4">
             <Coffee className="w-4 h-4 text-primary shrink-0 stroke-[2]" />
-            {/* ✅ نفس المسافة (gap-1.5) ونفس تلوين أيقونة Info نفسها عند الفتح */}
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-foreground leading-normal">أيام الإجازة الأسبوعية</h3>
               <Popover>
@@ -820,13 +958,13 @@ export default function CreatePlanForm({
               </Popover>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-2">
             {DAYS_OF_WEEK.map((day) => (
               <button
                 type="button"
                 key={day.value}
                 onClick={() => handleOffDayToggle(day.value)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                className={`px-2 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-center transition-all duration-200 border ${
                   formData.offDays.includes(day.value)
                     ? "bg-primary text-primary-foreground border-primary shadow-sm"
                     : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
@@ -854,7 +992,6 @@ export default function CreatePlanForm({
               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${vacationEnabled ? "left-0.5 translate-x-4" : "left-0.5"}`} />
             </button>
           </div>
-          {/* ✅ نفس المسافة (gap-1.5) ونفس تلوين أيقونة Info نفسها عند الفتح */}
           <div className="flex items-center gap-1.5">
             <span className="text-sm text-muted-foreground leading-normal">
               ({labels.workNounNew} / {labels.consolidationNoun})
@@ -892,9 +1029,17 @@ export default function CreatePlanForm({
                   <ArabicNumberInput value={daysOff} onChange={(val) => setDaysOff(Math.max(1, val || 1))} placeholder="عدد الأيام" textAlign="center" />
                 </div>
               </div>
-              <div className="text-sm text-primary font-medium bg-primary/5 p-3 rounded-lg">
-                <span className="font-bold">الدورة:</span> {toArabic(daysOn)} يوم {labels.workNounNew} → {toArabic(daysOff)} يوم {labels.consolidationNoun}
-                <span className="block text-xs text-muted-foreground mt-1">📌 أيام الإجازة الأسبوعية المحددة أعلاه تبقى راحة تامة حتى أثناء أيام {labels.consolidationNoun}.</span>
+              <div className="text-sm text-primary font-medium bg-primary/5 border border-primary/15 p-3.5 rounded-xl space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5 leading-normal">
+                  <span className="font-bold">الدورة:</span>
+                  <span>{toArabic(daysOn)} يوم {labels.workNounNew}</span>
+                  <ArrowLeft className="w-3.5 h-3.5 shrink-0 text-primary" />
+                  <span>{toArabic(daysOff)} يوم {labels.consolidationNoun}</span>
+                </div>
+                <div className="flex items-start gap-1.5 text-xs text-muted-foreground leading-relaxed">
+                  <Coffee className="w-3.5 h-3.5 shrink-0 text-primary mt-0.5" />
+                  <span>أيام الإجازة الأسبوعية المحددة أعلاه تبقى راحة تامة حتى أثناء أيام {labels.consolidationNoun}.</span>
+                </div>
               </div>
             </div>
           )}
@@ -906,11 +1051,17 @@ export default function CreatePlanForm({
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 justify-center">
           {onCancel && (
-            <Button variant="outline" onClick={onCancel} className="w-full sm:w-auto h-12 rounded-xl text-base min-w-[120px]">إلغاء</Button>
+            <Button variant="outline" onClick={onCancel} className="w-full sm:w-auto h-12 rounded-xl text-base min-w-[120px]">
+              إلغاء
+            </Button>
           )}
-          <Button onClick={handlePreview} className="w-full sm:w-auto h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-1.5" variant="outline">
+          <Button
+            onClick={handlePreview}
+            variant="outline"
+            className="w-full sm:w-auto h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-1.5 bg-primary/10 border-primary/30 text-primary hover:bg-primary/15"
+          >
             <Sparkles className="w-4 h-4 stroke-[2] text-primary" />
             {isEditing ? "معاينة التعديلات" : "معاينة الخطة"}
           </Button>
@@ -918,7 +1069,14 @@ export default function CreatePlanForm({
 
         {hasPreview && preview && (
           <div className="bg-primary/5 border border-primary/15 rounded-2xl p-6 space-y-4">
-            <h4 className="font-bold text-foreground text-center">{preview.name}</h4>
+            <div className="text-center space-y-1">
+              <h4 className="font-bold text-foreground">{preview.name}</h4>
+              {planningMode === "by_pace" && (
+                <p className="text-xs text-primary font-semibold">
+                  تاريخ الانتهاء المحسوب: {formatArabicDate(preview.endDate, { includeYear: true })}
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
               <div><p className="text-2xl font-bold text-primary">{toArabic(preview.totalPages)}</p><p className="text-xs text-muted-foreground">صفحة إجمالي</p></div>
               <div><p className="text-2xl font-bold text-primary">{toArabic(preview.workDays)}</p><p className="text-xs text-muted-foreground">{labels.workDayLabel}</p></div>

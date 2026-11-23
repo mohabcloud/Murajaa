@@ -33,8 +33,17 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+function formatArabicUnit(count, singular, dual, plural, accusative) {
+  if (count === 1) return singular;
+  if (count === 2) return dual;
+  const ar = toArabicNumbers(count);
+  const mod100 = count % 100;
+  if (mod100 >= 3 && mod100 <= 10) return `${ar} ${plural}`;
+  return `${ar} ${accusative}`;
+}
+
 export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, onSwitchPlan, onNewPlan, onEditPlan }) {
-  const [recordDay, setRecordDay] = useState(null);
+  const [recordDayDate, setRecordDayDate] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
@@ -56,7 +65,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">الخطة غير مكتملة. يرجى إنشاء خطة جديدة.</p>
-        <Button onClick={onNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
+        <Button type="button" onClick={onNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
       </div>
     );
   }
@@ -69,7 +78,16 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
   const alreadyRecorded = todayData && todayData.status !== "pending";
   const dailyPages = plan.dailyPages ?? Math.ceil((plan.totalPages || 0) / Math.max(1, plan.workDays || 1));
 
-  const handleRecordDay = (day) => { setRecordDay(day); setDialogOpen(true); };
+  // ✅ ربط اليوم المختار دائماً بأحدث نسخة من الجدول
+  const activeRecordDay = recordDayDate
+    ? (plan.schedule.find((d) => d.date === recordDayDate) || null)
+    : null;
+
+  const handleRecordDay = (day) => {
+    if (!day?.date) return;
+    setRecordDayDate(day.date);
+    setDialogOpen(true);
+  };
 
   const handleSaveProgress = (dateStr, calculatedVerses, flexibleInput, note) => {
     const updatedPlan = recordDayProgressFlexible(plan, dateStr, flexibleInput, note);
@@ -96,7 +114,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
           <div className="flex items-center gap-3 flex-wrap">
             <DropdownMenu dir="rtl">
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-4 py-2.5 hover:border-primary/40 transition-colors">
+                <button type="button" className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-4 py-2.5 hover:border-primary/40 transition-colors">
                   {labels.isMemorization ? (
                     <BookmarkCheck className="w-4 h-4 text-primary shrink-0" />
                   ) : (
@@ -114,6 +132,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   const pType = p.planType || "review";
                   const pLabels = getPlanLabels(pType);
                   const isActive = p.id === plan.id;
+                  const isSameTheme = pType === planType;
 
                   return (
                     <DropdownMenuItem
@@ -131,9 +150,9 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
 
                       <span
                         className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border shrink-0 leading-normal transition-colors ${
-                          pType === "memorization"
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 group-focus:bg-amber-500/20"
-                            : "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/25 group-focus:bg-teal-500/20"
+                          isSameTheme
+                            ? "bg-primary/15 text-primary border-primary/25"
+                            : "bg-secondary text-secondary-foreground border-border"
                         }`}
                       >
                         {pLabels.planTypeName}
@@ -152,7 +171,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                     onClick={onNewPlan}
                     className="rounded-xl px-3 py-2 text-primary font-semibold cursor-pointer focus:bg-primary/15 focus:text-primary"
                   >
-                    <Plus className="w-4 h-4 ml-2 shrink-0" /> خطة جديدة
+                    <Plus className="w-4 h-4 me-2 shrink-0" /> خطة جديدة
                   </DropdownMenuItem>
                 </div>
               </DropdownMenuContent>
@@ -162,7 +181,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => onEditPlan(plan)} className="h-10 w-10 p-0 border-primary/25 hover:bg-primary/10 flex items-center justify-center">
+                    <Button type="button" variant="outline" size="sm" onClick={() => onEditPlan(plan)} className="h-10 w-10 p-0 border-primary/25 hover:bg-primary/10 flex items-center justify-center">
                       <Pencil className="w-4 h-4 shrink-0" />
                     </Button>
                   </TooltipTrigger>
@@ -177,7 +196,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-10 w-10 p-0 text-destructive border-destructive/25 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center">
+                        <Button type="button" variant="outline" size="sm" className="h-10 w-10 p-0 text-destructive border-destructive/25 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center">
                           <Trash2 className="w-4 h-4 shrink-0" />
                         </Button>
                       </AlertDialogTrigger>
@@ -204,7 +223,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
           </div>
 
           <p className="text-muted-foreground mt-2 text-sm flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               {smartQuranDisplay(plan.totalVerses || 0, plan.startPage || 1)}
               <QuranDetailsPopover verses={plan.totalVerses || 0} startPage={plan.startPage || 1} />
             </span>
@@ -239,7 +258,9 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
             <p className="text-xs text-muted-foreground">
               متبقي: <span className="font-semibold text-accent">{toArabicNumbers(Math.max(0, totalPages - completedPages))} صفحة</span>
             </p>
-            <p className="text-xs text-muted-foreground">{formatQuranUnits(plan.completedVerses || 0, plan.startPage || 1)}</p>
+            {(plan.completedVerses || 0) > 0 && (
+              <p className="text-xs text-muted-foreground">{formatQuranUnits(plan.completedVerses, plan.startPage || 1)}</p>
+            )}
           </div>
         </div>
 
@@ -247,30 +268,35 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
           <div className={`rounded-2xl border p-6 ${
             todayData.isOff
               ? 'bg-secondary/50 border-border/40'
-              : todayData.isReviewDay
-              ? 'bg-accent/5 border-accent/25'
               : 'bg-primary/5 border-primary/20'
           }`}>
-            <h3 className="font-bold text-foreground mb-3 flex items-center gap-2 max-md:items-start">
-              {todayData.isReviewDay ? (
-                <RefreshCw className="w-5 h-5 text-accent shrink-0 max-md:mt-0.5" />
-              ) : (
-                <Target className="w-5 h-5 text-primary shrink-0 max-md:mt-0.5" />
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="font-bold text-foreground flex items-center gap-2">
+                {todayData.isReviewDay ? (
+                  <RefreshCw className="w-5 h-5 text-primary shrink-0" />
+                ) : (
+                  <Target className="w-5 h-5 text-primary shrink-0" />
+                )}
+                <span>مهمة اليوم</span>
+              </h3>
+              {todayData.isReviewDay && (
+                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/25">
+                  {labels.consolidationNoun}
+                </span>
               )}
-              {todayData.isReviewDay ? `مهمة اليوم (${labels.consolidationNoun})` : "مهمة اليوم"}
-            </h3>
+            </div>
             {todayData.isOff ? (
               <div className="text-center py-4 space-y-3">
                 <p className="text-lg font-semibold text-muted-foreground">يوم إجازة</p>
                 <p className="text-sm text-muted-foreground">استمتع بيومك!</p>
-                <Button onClick={() => handleRecordDay(todayData)} variant="outline" className="rounded-xl" size="sm">
+                <Button type="button" onClick={() => handleRecordDay(todayData)} variant="outline" className="rounded-xl" size="sm">
                   تسجيل إنجاز استثنائي
                 </Button>
               </div>
             ) : (
               <>
-                <div className="text-center py-3 space-y-2">
-                  <p className={`text-4xl font-bold ${todayData.isReviewDay ? 'text-accent' : 'text-primary'}`}>
+                <div className="text-center py-2.5 space-y-2">
+                  <p className="text-2xl sm:text-3xl font-bold text-primary leading-snug">
                     {todayData.targetVerses > 0
                       ? formatQuranUnits(todayData.targetVerses, todayData.targetStartPage || plan.startPage || 1)
                       : labels.consolidationNoun}
@@ -285,10 +311,9 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   )}
                 </div>
                 <Button
+                  type="button"
                   onClick={() => handleRecordDay(todayData)}
-                  className={`w-full mt-4 rounded-xl h-11 font-semibold ${
-                    todayData.isReviewDay && !alreadyRecorded ? 'bg-accent text-accent-foreground hover:bg-accent/90' : ''
-                  }`}
+                  className="w-full mt-4 rounded-xl h-11 font-semibold"
                   variant={alreadyRecorded ? "outline" : "default"}
                 >
                   {todayData.status === "skipped"
@@ -308,13 +333,13 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
           <StatCard
             icon={labels.isMemorization ? BookmarkCheck : BookOpen}
             label="المقدار اليومي الحالي"
-            value={`${toArabicNumbers(dailyPages)} صفحات`}
+            value={formatArabicUnit(dailyPages, "صفحة واحدة", "صفحتان", "صفحات", "صفحة")}
             subValue={`يتحدث تلقائياً بناءً على المتبقي من ${labels.workNoun}`}
           />
           <StatCard
             icon={Layers}
             label="الأيام المتبقية"
-            value={`${toArabicNumbers(stats?.pendingDays || 0)} يوم`}
+            value={formatArabicUnit(stats?.pendingDays || 0, "يوم واحد", "يومان", "أيام", "يوماً")}
             subValue={`${toArabicNumbers(stats?.completedDays || 0)} منجز · ${toArabicNumbers(stats?.partialDays || 0)} جزئي · ${toArabicNumbers(stats?.skippedDays || 0)} متخطى`}
           />
         </div>
@@ -323,13 +348,16 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
       <ScheduleView schedule={plan.schedule || []} onRecordDay={handleRecordDay} planType={planType} />
       <FlexibleEntryPanel
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        day={recordDay}
+        onOpenChange={(nextOpen) => {
+          setDialogOpen(nextOpen);
+          if (!nextOpen) setRecordDayDate(null);
+        }}
+        day={activeRecordDay}
         planType={planType}
         onSave={handleSaveProgress}
         onSkip={handleSkipProgress}
         onUndo={handleUndoProgress}
-        alreadyRecorded={recordDay && recordDay.status !== "pending"}
+        alreadyRecorded={activeRecordDay && activeRecordDay.status !== "pending"}
       />
     </div>
   );

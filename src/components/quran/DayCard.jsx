@@ -1,364 +1,415 @@
-// src/components/quran/Dashboard.jsx
-import React, { useState, useEffect } from "react";
-import { Target, Trash2, BookOpen, Layers, Plus, ChevronDown, Pencil, BookmarkCheck, RefreshCw } from "lucide-react";
+// src/components/quran/DayCard.jsx
+import React from "react";
+import { Check, X, Clock, Coffee, RefreshCw, ArrowLeft, SlidersHorizontal } from "lucide-react";
+import { formatQuranUnits, toArabicNumbers, formatArabicDate, getPlanLabels } from "@/lib/quranPlanEngine";
 import {
-  getStats,
-  getProgress,
-  getTodayData,
-  recordDayProgressFlexible,
-  skipDayProgress,
-  undoDayProgress,
-  formatQuranUnits,
-  smartQuranDisplay,
-  versesToPages,
-  toArabicNumbers,
-  getPlanLabels,
-} from "@/lib/quranPlanEngine";
-import ProgressRing from "./ProgressRing";
-import StatCard from "./StatCard";
-import ScheduleView from "./ScheduleView";
-import FlexibleEntryPanel from "./FlexibleEntryPanel";
-import QuranDetailsPopover from "./QuranDetailsPopover";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
-  AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-function formatArabicUnit(count, singular, dual, plural, accusative) {
-  if (count === 1) return singular;
-  if (count === 2) return dual;
-  const ar = toArabicNumbers(count);
-  const mod100 = count % 100;
-  if (mod100 >= 3 && mod100 <= 10) return `${ar} ${plural}`;
-  return `${ar} ${accusative}`;
+const statusConfig = {
+  completed: { icon: Check, bg: "bg-primary/10", text: "text-primary", border: "border-primary/20", label: "مُنجَز" },
+  partial: { icon: Clock, bg: "bg-accent/10", text: "text-accent", border: "border-accent/20", label: "جزئي" },
+  skipped: { icon: X, bg: "bg-destructive/10", text: "text-destructive", border: "border-destructive/20", label: "مُتخطّى" },
+  pending: { icon: Clock, bg: "bg-muted/50", text: "text-muted-foreground", border: "border-border", label: "قادم" },
+};
+
+function PageRangeDisplay({ startPage, endPage }) {
+  if (!startPage) return null;
+  if (!endPage || startPage === endPage) {
+    return (
+      <span className="inline-flex items-center text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-0.5 rounded-md">
+        صفحة{"\u00A0"}{toArabicNumbers(startPage)}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-0.5 rounded-md">
+      <span>ص{"\u00A0"}{toArabicNumbers(startPage)}</span>
+      <ArrowLeft className="w-3 h-3 shrink-0" />
+      <span>ص{"\u00A0"}{toArabicNumbers(endPage)}</span>
+    </span>
+  );
 }
 
-export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, onSwitchPlan, onNewPlan, onEditPlan }) {
-  const [recordDayDate, setRecordDayDate] = useState(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+export default function DayCard({ day, isToday, onRecord, onQuickComplete, planType = "review" }) {
+  if (!day) return null;
 
-  useEffect(() => {
-    const checkDark = () => setIsDark(document.documentElement.classList.contains('dark'));
-    checkDark();
-    const observer = new MutationObserver(checkDark);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
+  const labels = getPlanLabels(planType);
+  const consolidationProposalLabel = labels.isMemorization ? "مقترح التثبيت" : "مقترح الربط";
+  const canQuickComplete = isToday && day.status === "pending" && (day.targetVerses || 0) > 0 && !!onQuickComplete;
 
-  const tooltipColors = {
-    bg: isDark ? 'hsl(var(--popover))' : '#ffffff',
-    text: isDark ? 'hsl(var(--popover-foreground))' : '#1e293b',
-    border: isDark ? 'hsl(var(--border))' : '#e2e8f0',
-  };
+  // 1. يوم الإجازة الأسبوعية (راحة تامة)
+  if (day.isOff) {
+    if (isToday) {
+      return (
+        <div className="col-span-full bg-secondary/45 rounded-2xl border border-border/50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
+              <Coffee className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-foreground">{day.dayName}</span>
+                <span className="text-xs text-muted-foreground">· {formatArabicDate(day.date)}</span>
+                <span className="text-xs text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full font-medium">
+                  إجازة اليوم
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">يوم راحة تامة — استمتع بيومك!</p>
+            </div>
+          </div>
+          {onRecord && (
+            <button
+              type="button"
+              onClick={() => onRecord(day)}
+              className="rounded-xl border border-border bg-background/70 py-2 px-3.5 text-xs font-semibold text-foreground transition-colors hover:border-primary/40 hover:text-primary shrink-0"
+            >
+              تسجيل إنجاز استثنائي
+            </button>
+          )}
+        </div>
+      );
+    }
 
-  if (!plan || !plan.schedule || !Array.isArray(plan.schedule)) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">الخطة غير مكتملة. يرجى إنشاء خطة جديدة.</p>
-        <Button type="button" onClick={onNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
+      // ✅ h-full + محتوى متوازن لمنع الفجوات السوداء مع البطاقات المجاورة
+      <div className="h-full bg-secondary/35 rounded-2xl border border-border/40 p-4 flex flex-col justify-between gap-3 opacity-85">
+        <div className="flex items-start justify-between gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2.5 cursor-default min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-muted/80 flex items-center justify-center shrink-0">
+                    <Coffee className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-muted-foreground leading-tight">{day.dayName}</p>
+                    <p className="text-xs text-muted-foreground/80 mt-0.5">{formatArabicDate(day.date)}</p>
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                يوم راحة تامة
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full shrink-0">
+            إجازة
+          </span>
+        </div>
+
+        <div className="pt-2 border-t border-border/30">
+          <p className="text-xs text-muted-foreground">يوم راحة تامة</p>
+        </div>
       </div>
     );
   }
 
-  const planType = plan.planType || "review";
-  const labels = getPlanLabels(planType);
-  const stats = getStats(plan);
-  const progress = getProgress(plan);
-  const todayData = getTodayData(plan);
-  const alreadyRecorded = todayData && todayData.status !== "pending";
-  const dailyPages = plan.dailyPages ?? Math.ceil((plan.totalPages || 0) / Math.max(1, plan.workDays || 1));
+  // 2. يوم التثبيت / الربط والتجميع
+  if (day.isReviewDay) {
+    const config = statusConfig[day.status] || statusConfig.pending;
+    const recordedAmount = day.consolidationVerses || day.completedVerses || 0;
 
-  // ✅ ربط اليوم المختار دائماً بأحدث نسخة من الجدول
-  const activeRecordDay = recordDayDate
-    ? (plan.schedule.find((d) => d.date === recordDayDate) || null)
-    : null;
-
-  const handleRecordDay = (day) => {
-    if (!day?.date) return;
-    setRecordDayDate(day.date);
-    setDialogOpen(true);
-  };
-
-  const handleSaveProgress = (dateStr, calculatedVerses, flexibleInput, note) => {
-    const updatedPlan = recordDayProgressFlexible(plan, dateStr, flexibleInput, note);
-    onPlanUpdate(updatedPlan);
-  };
-
-  const handleSkipProgress = (dateStr) => {
-    const updatedPlan = skipDayProgress(plan, dateStr);
-    onPlanUpdate(updatedPlan);
-  };
-
-  const handleUndoProgress = (dateStr) => {
-    const updatedPlan = undoDayProgress(plan, dateStr);
-    onPlanUpdate(updatedPlan);
-  };
-
-  const completedPages = plan.completedVerses ? versesToPages(plan.completedVerses, plan.startPage) : 0;
-  const totalPages = plan.totalPages || 1;
-
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <DropdownMenu dir="rtl">
-              <DropdownMenuTrigger asChild>
-                <button type="button" className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-4 py-2.5 hover:border-primary/40 transition-colors">
-                  {labels.isMemorization ? (
-                    <BookmarkCheck className="w-4 h-4 text-primary shrink-0" />
-                  ) : (
-                    <BookOpen className="w-4 h-4 text-primary shrink-0" />
-                  )}
-                  <span className="font-bold text-foreground text-sm max-w-[180px] sm:max-w-[240px] truncate pe-1 leading-normal">{plan.name || "بدون اسم"}</span>
-                  <span className="text-[11px] bg-primary/15 text-primary border border-primary/25 font-semibold px-2.5 py-0.5 rounded-full leading-normal">
-                    {labels.planTypeName}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-80 p-1.5 rounded-2xl">
-                {allPlans.map((p) => {
-                  const pType = p.planType || "review";
-                  const pLabels = getPlanLabels(pType);
-                  const isActive = p.id === plan.id;
-                  const isSameTheme = pType === planType;
-
-                  return (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => !isActive && onSwitchPlan(p.id)}
-                      className={`group flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
-                        isActive
-                          ? "bg-primary/10 focus:bg-primary/20 focus:text-foreground"
-                          : "focus:bg-primary/15 focus:text-foreground"
-                      }`}
-                    >
-                      <span className="truncate flex-1 text-right font-medium text-foreground pe-1 leading-normal">
-                        {p.name}
-                      </span>
-
-                      <span
-                        className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border shrink-0 leading-normal transition-colors ${
-                          isSameTheme
-                            ? "bg-primary/15 text-primary border-primary/25"
-                            : "bg-secondary text-secondary-foreground border-border"
-                        }`}
-                      >
-                        {pLabels.planTypeName}
-                      </span>
-
-                      {isActive && (
-                        <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2.5 py-0.5 rounded-full shrink-0 leading-normal shadow-xs">
-                          نشط
-                        </span>
-                      )}
-                    </DropdownMenuItem>
-                  );
-                })}
-                <div className="border-t border-border/40 mt-1.5 pt-1.5">
-                  <DropdownMenuItem
-                    onClick={onNewPlan}
-                    className="rounded-xl px-3 py-2 text-primary font-semibold cursor-pointer focus:bg-primary/15 focus:text-primary"
-                  >
-                    <Plus className="w-4 h-4 me-2 shrink-0" /> خطة جديدة
-                  </DropdownMenuItem>
+    // ✅ شريط اليوم العريض (col-span-full) لتمييز مهمة اليوم وتجنب تمدد البطاقات الأخرى
+    if (isToday) {
+      return (
+        <div className="col-span-full rounded-2xl border p-4 sm:p-5 bg-primary/5 border-primary/30 shadow-sm shadow-primary/5 ring-1 ring-primary/10 transition-all duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-2.5 min-w-0 flex-1">
+              <div className="flex items-center justify-between sm:justify-start gap-2.5 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                    <RefreshCw className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-foreground">{day.dayName}</span>
+                    <span className="text-xs text-muted-foreground ms-2">{formatArabicDate(day.date)}</span>
+                  </div>
                 </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-primary/15 text-primary border border-primary/25">
+                    اليوم
+                  </span>
+                  <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-accent/15 text-accent border border-accent/25">
+                    {labels.consolidationNoun}
+                  </span>
+                </div>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button type="button" variant="outline" size="sm" onClick={() => onEditPlan(plan)} className="h-10 w-10 p-0 border-primary/25 hover:bg-primary/10 flex items-center justify-center">
-                      <Pencil className="w-4 h-4 shrink-0" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
-                    <p>تعديل الخطة</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {day.targetVerses > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{consolidationProposalLabel}:</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatQuranUnits(day.targetVerses, day.targetStartPage || 1)}
+                  </span>
+                  <PageRangeDisplay startPage={day.targetStartPage} endPage={day.targetEndPage} />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">اختر ما تريد تثبيته من المصحف</p>
+              )}
 
-              <AlertDialog>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <AlertDialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" className="h-10 w-10 p-0 text-destructive border-destructive/25 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center">
-                          <Trash2 className="w-4 h-4 shrink-0" />
-                        </Button>
-                      </AlertDialogTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
-                      <p>حذف الخطة</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <AlertDialogContent dir="rtl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>حذف "{plan.name}"</AlertDialogTitle>
-                    <AlertDialogDescription>هل أنت متأكد من حذف هذه الخطة؟ سيتم فقدان جميع بيانات التقدم.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="flex gap-2 sm:gap-2">
-                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => onDeletePlan(plan.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      حذف
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {day.note && (
+                <div className="text-xs text-primary font-medium bg-primary/10 rounded-lg py-1 px-2.5 inline-block max-w-full truncate leading-normal">
+                  {day.note}
+                </div>
+              )}
+
+              {day.status !== "pending" && (
+                <div className="flex items-center gap-2 text-xs pt-1">
+                  <span className="text-muted-foreground">الحالة:</span>
+                  <span className={`font-bold ${config.text}`}>
+                    {day.status === "skipped"
+                      ? "مُتخطّى"
+                      : recordedAmount > 0
+                      ? formatQuranUnits(recordedAmount, day.targetStartPage || 1)
+                      : config.label}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
 
-          <p className="text-muted-foreground mt-2 text-sm flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1.5">
-              {smartQuranDisplay(plan.totalVerses || 0, plan.startPage || 1)}
-              <QuranDetailsPopover verses={plan.totalVerses || 0} startPage={plan.startPage || 1} />
-            </span>
-          </p>
-        </div>
-
-        <div className="flex items-center gap-4 bg-card border border-border/60 rounded-2xl px-5 py-3">
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground">مُنجَز</p>
-            <p className="text-lg font-bold text-primary">{toArabicNumbers(completedPages)}</p>
-          </div>
-          <div className="w-px h-8 bg-border/60" />
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground">متبقي</p>
-            <p className="text-lg font-bold text-accent">{toArabicNumbers(Math.max(0, totalPages - completedPages))}</p>
-          </div>
-          <div className="w-px h-8 bg-border/60" />
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground">يوميًا</p>
-            <p className="text-lg font-bold text-primary">{toArabicNumbers(dailyPages)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-card rounded-2xl border border-border/60 p-6 flex flex-col items-center justify-center">
-          <ProgressRing progress={progress || 0} />
-          <div className="mt-4 text-center space-y-1">
-            <p className="text-sm text-muted-foreground">
-              <span className="font-bold text-foreground">{toArabicNumbers(completedPages)}</span> من {toArabicNumbers(totalPages)} صفحة
-            </p>
-            <p className="text-xs text-muted-foreground">
-              متبقي: <span className="font-semibold text-accent">{toArabicNumbers(Math.max(0, totalPages - completedPages))} صفحة</span>
-            </p>
-            {(plan.completedVerses || 0) > 0 && (
-              <p className="text-xs text-muted-foreground">{formatQuranUnits(plan.completedVerses, plan.startPage || 1)}</p>
+            {onRecord && (
+              <div className="sm:w-auto sm:min-w-[235px] shrink-0">
+                {canQuickComplete ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onQuickComplete(day)}
+                      className="flex-1 rounded-xl bg-primary py-2.5 px-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.98] flex items-center justify-center gap-1.5 whitespace-nowrap"
+                    >
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span>{labels.isMemorization ? "أتممت التثبيت" : "أتممت الربط"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRecord(day)}
+                      className="rounded-xl border border-primary/30 bg-background/70 py-2.5 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 active:scale-[0.98] shrink-0 flex items-center gap-1.5"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                      <span>تخصيص</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onRecord(day)}
+                    className="w-full rounded-xl bg-primary py-2.5 px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.98]"
+                  >
+                    {day.status !== "pending" ? `تعديل ${labels.consolidationNoun}` : `تسجيل ${labels.consolidationNoun}`}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
+      );
+    }
 
-        {todayData && (
-          <div className={`rounded-2xl border p-6 ${
-            todayData.isOff
-              ? 'bg-secondary/50 border-border/40'
-              : 'bg-primary/5 border-primary/20'
-          }`}>
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <h3 className="font-bold text-foreground flex items-center gap-2">
-                {todayData.isReviewDay ? (
-                  <RefreshCw className="w-5 h-5 text-primary shrink-0" />
-                ) : (
-                  <Target className="w-5 h-5 text-primary shrink-0" />
-                )}
-                <span>مهمة اليوم</span>
-              </h3>
-              {todayData.isReviewDay && (
-                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/25">
-                  {labels.consolidationNoun}
+    return (
+      <div
+        className={`h-full rounded-2xl border p-4 flex flex-col justify-between gap-3 transition-all duration-300 ${
+          day.status === "completed"
+            ? "bg-primary/10 border-primary/25"
+            : `${config.bg} ${config.border}`
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+              day.status === "completed" ? "bg-primary text-primary-foreground" : "bg-primary/15 text-primary"
+            }`}>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground leading-tight">{day.dayName}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{formatArabicDate(day.date)}</p>
+            </div>
+          </div>
+          <span className="rounded-full px-2.5 py-1 text-xs font-semibold bg-accent/15 text-accent border border-accent/25 shrink-0">
+            {labels.consolidationNoun}
+          </span>
+        </div>
+
+        {/* ✅ محاذاة يمينية مجمّعة بدون فراغ أفقي وسط البطاقة */}
+        <div className="space-y-1.5 pt-2 border-t border-border/35">
+          {day.targetVerses > 0 ? (
+            <>
+              <p className="text-xs text-muted-foreground">{consolidationProposalLabel}</p>
+              <p className="text-sm sm:text-base font-bold text-foreground leading-snug">
+                {formatQuranUnits(day.targetVerses, day.targetStartPage || 1)}
+              </p>
+              <div className="pt-0.5">
+                <PageRangeDisplay startPage={day.targetStartPage} endPage={day.targetEndPage} />
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">اختر ما تريد تثبيته من المصحف</p>
+          )}
+
+          {day.note && (
+            <div className="text-[11px] text-primary font-medium mt-1 bg-primary/10 rounded-lg py-1 px-2 truncate leading-normal">
+              {day.note}
+            </div>
+          )}
+
+          {day.status !== "pending" && (
+            <div className="pt-2 mt-1 border-t border-border/40 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">الحالة:</span>
+              <span className={`font-bold ${config.text}`}>
+                {day.status === "skipped"
+                  ? "مُتخطّى"
+                  : recordedAmount > 0
+                  ? formatQuranUnits(recordedAmount, day.targetStartPage || 1)
+                  : config.label}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 3. يوم الحفظ / المراجعة الأساسي
+  const config = statusConfig[day.status] || statusConfig.pending;
+  const StatusIcon = config.icon;
+  const isTodayPending = isToday && day.status === "pending";
+
+  // ✅ شريط اليوم العريض (col-span-full) لليوم الحالي
+  if (isToday) {
+    return (
+      <div className="col-span-full rounded-2xl border p-4 sm:p-5 bg-primary/5 border-primary/30 shadow-sm shadow-primary/5 ring-1 ring-primary/10 transition-all duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-2.5 min-w-0 flex-1">
+            <div className="flex items-center justify-between sm:justify-start gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                  <StatusIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-foreground">{day.dayName}</span>
+                  <span className="text-xs text-muted-foreground ms-2">{formatArabicDate(day.date)}</span>
+                </div>
+              </div>
+              {isTodayPending ? (
+                <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-primary/15 text-primary border border-primary/25">
+                  ورد اليوم
+                </span>
+              ) : (
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${config.bg} ${config.text}`}>
+                  {config.label}
                 </span>
               )}
             </div>
-            {todayData.isOff ? (
-              <div className="text-center py-4 space-y-3">
-                <p className="text-lg font-semibold text-muted-foreground">يوم إجازة</p>
-                <p className="text-sm text-muted-foreground">استمتع بيومك!</p>
-                <Button type="button" onClick={() => handleRecordDay(todayData)} variant="outline" className="rounded-xl" size="sm">
-                  تسجيل إنجاز استثنائي
-                </Button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base sm:text-lg font-bold text-foreground">
+                {formatQuranUnits(day.targetVerses, day.targetStartPage || 1)}
+              </span>
+              <PageRangeDisplay startPage={day.targetStartPage} endPage={day.targetEndPage} />
+              {day.targetQuarterName && (
+                <span className="text-[11px] text-primary font-semibold bg-primary/10 rounded-md py-0.5 px-2 leading-normal">
+                  {day.targetQuarterName}
+                </span>
+              )}
+            </div>
+
+            {day.status !== "pending" && (
+              <div className="flex items-center gap-2 text-xs pt-0.5">
+                <span className="text-muted-foreground">المُنجَز:</span>
+                <span className={`font-bold ${day.completedVerses >= day.targetVerses ? "text-primary" : "text-accent"}`}>
+                  {day.status === "skipped"
+                    ? "مُتخطّى"
+                    : formatQuranUnits(day.completedVerses, day.targetStartPage || 1)}
+                </span>
               </div>
-            ) : (
-              <>
-                <div className="text-center py-2.5 space-y-2">
-                  <p className="text-2xl sm:text-3xl font-bold text-primary leading-snug">
-                    {todayData.targetVerses > 0
-                      ? formatQuranUnits(todayData.targetVerses, todayData.targetStartPage || plan.startPage || 1)
-                      : labels.consolidationNoun}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {todayData.isReviewDay ? `مقترح ${labels.consolidationNoun} (الدورة السابقة)` : `ورد ${labels.workNoun} المطلوب`}
-                  </p>
-                  {todayData.targetStartPage && (
-                    <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg py-1.5 px-3 inline-block">
-                      من ص{toArabicNumbers(todayData.targetStartPage)} إلى ص{toArabicNumbers(todayData.targetEndPage)}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => handleRecordDay(todayData)}
-                  className="w-full mt-4 rounded-xl h-11 font-semibold"
-                  variant={alreadyRecorded ? "outline" : "default"}
-                >
-                  {todayData.status === "skipped"
-                    ? "تم التخطي · تعديل"
-                    : alreadyRecorded
-                    ? `تعديل (${formatQuranUnits(todayData.completedVerses || 0, todayData.targetStartPage || plan.startPage || 1)})`
-                    : todayData.isReviewDay
-                    ? `تسجيل ${labels.consolidationNoun}`
-                    : "تسجيل الإنجاز"}
-                </Button>
-              </>
             )}
           </div>
-        )}
 
-        <div className="space-y-3 flex flex-col justify-center">
-          <StatCard
-            icon={labels.isMemorization ? BookmarkCheck : BookOpen}
-            label="المقدار اليومي الحالي"
-            value={formatArabicUnit(dailyPages, "صفحة واحدة", "صفحتان", "صفحات", "صفحة")}
-            subValue={`يتحدث تلقائياً بناءً على المتبقي من ${labels.workNoun}`}
-          />
-          <StatCard
-            icon={Layers}
-            label="الأيام المتبقية"
-            value={formatArabicUnit(stats?.pendingDays || 0, "يوم واحد", "يومان", "أيام", "يوماً")}
-            subValue={`${toArabicNumbers(stats?.completedDays || 0)} منجز · ${toArabicNumbers(stats?.partialDays || 0)} جزئي · ${toArabicNumbers(stats?.skippedDays || 0)} متخطى`}
-          />
+          {onRecord && (
+            <div className="sm:w-auto sm:min-w-[235px] shrink-0">
+              {canQuickComplete ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onQuickComplete(day)}
+                    className="flex-1 rounded-xl bg-primary py-2.5 px-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.98] flex items-center justify-center gap-1.5 whitespace-nowrap"
+                  >
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span>أتممت الورد</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRecord(day)}
+                    className="rounded-xl border border-primary/30 bg-background/70 py-2.5 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 active:scale-[0.98] shrink-0 flex items-center gap-1.5"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                    <span>تخصيص</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onRecord(day)}
+                  className="w-full rounded-xl bg-primary py-2.5 px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.98]"
+                >
+                  {day.status !== "pending" ? "تعديل الإنجاز" : "تسجيل الإنجاز"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
+    );
+  }
 
-      <ScheduleView schedule={plan.schedule || []} onRecordDay={handleRecordDay} planType={planType} />
-      <FlexibleEntryPanel
-        open={dialogOpen}
-        onOpenChange={(nextOpen) => {
-          setDialogOpen(nextOpen);
-          if (!nextOpen) setRecordDayDate(null);
-        }}
-        day={activeRecordDay}
-        planType={planType}
-        onSave={handleSaveProgress}
-        onSkip={handleSkipProgress}
-        onUndo={handleUndoProgress}
-        alreadyRecorded={activeRecordDay && activeRecordDay.status !== "pending"}
-      />
+  return (
+    <div
+      className={`h-full rounded-2xl border p-4 flex flex-col justify-between gap-3 transition-all duration-300 ${config.bg} ${config.border}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${config.bg}`}>
+            <StatusIcon className={`w-3.5 h-3.5 ${config.text}`} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-tight">{day.dayName}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{formatArabicDate(day.date)}</p>
+          </div>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold shrink-0 ${config.bg} ${config.text}`}>
+          {config.label}
+        </span>
+      </div>
+
+      {/* ✅ تجميع الورد ونطاق الصفحات على اليمين بشكل متراص ومريح للعين */}
+      <div className="space-y-1.5 pt-2 border-t border-border/35">
+        <p className="text-xs text-muted-foreground">الورد</p>
+        <p className="text-sm sm:text-base font-bold text-foreground leading-snug">
+          {formatQuranUnits(day.targetVerses, day.targetStartPage || 1)}
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <PageRangeDisplay startPage={day.targetStartPage} endPage={day.targetEndPage} />
+          {day.targetQuarterName && (
+            <span className="text-[11px] text-primary font-semibold bg-primary/10 rounded-md py-0.5 px-2 leading-normal">
+              {day.targetQuarterName}
+            </span>
+          )}
+        </div>
+
+        {day.status !== "pending" && (
+          <div className="pt-2 mt-1 border-t border-border/40 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">المُنجَز:</span>
+            <span className={`font-bold ${day.completedVerses >= day.targetVerses ? "text-primary" : "text-accent"}`}>
+              {day.status === "skipped"
+                ? "مُتخطّى"
+                : formatQuranUnits(day.completedVerses, day.targetStartPage || 1)}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

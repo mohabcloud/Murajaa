@@ -65,7 +65,9 @@ module.exports = {
   			heading: ['var(--font-heading)'],
   			body: ['var(--font-body)'],
   			display: ['var(--font-display)'],
-  			mono: ['var(--font-mono)']
+  			mono: ['var(--font-mono)'],
+  			// ✅ ربط font-serif بخط Scheherazade New العثماني لتوحيد عرض الآيات على Chrome وFirefox
+  			serif: ['"Scheherazade New"', '"Noto Naskh Arabic"', 'serif']
   		},
   		keyframes: {
   			'accordion-down': {

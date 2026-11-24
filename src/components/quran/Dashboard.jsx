@@ -1,6 +1,6 @@
 // src/components/quran/Dashboard.jsx
 import React, { useState, useEffect } from "react";
-import { Target, Trash2, BookOpen, Layers, Plus, ChevronDown, Pencil, BookmarkCheck, RefreshCw } from "lucide-react";
+import { Target, Trash2, BookOpen, Layers, Plus, ChevronDown, Pencil, BookmarkCheck, RefreshCw, Check, SlidersHorizontal } from "lucide-react";
 import {
   getStats,
   getProgress,
@@ -78,7 +78,6 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
   const alreadyRecorded = todayData && todayData.status !== "pending";
   const dailyPages = plan.dailyPages ?? Math.ceil((plan.totalPages || 0) / Math.max(1, plan.workDays || 1));
 
-  // ✅ ربط اليوم المختار دائماً بأحدث نسخة من الجدول
   const activeRecordDay = recordDayDate
     ? (plan.schedule.find((d) => d.date === recordDayDate) || null)
     : null;
@@ -87,6 +86,43 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
     if (!day?.date) return;
     setRecordDayDate(day.date);
     setDialogOpen(true);
+  };
+
+  // ✅ إنجاز الورد المقرر بالكامل بضغطة واحدة مع زر تراجع فوري في الإشعار
+  const handleQuickComplete = (day) => {
+    if (!day || day.isOff || !(day.targetVerses > 0)) return;
+    const refStart = day.targetStartPage || plan.startPage || 1;
+    let autoNote = day.note || "";
+    if (day.isReviewDay && !autoNote && day.targetStartPage) {
+      autoNote = !day.targetEndPage || day.targetStartPage === day.targetEndPage
+        ? `${labels.consolidationNoun} صفحة\u00A0${toArabicNumbers(day.targetStartPage)}`
+        : `${labels.consolidationNoun} ص\u00A0${toArabicNumbers(day.targetStartPage)} إلى ص\u00A0${toArabicNumbers(day.targetEndPage)}`;
+    }
+
+    const updatedPlan = recordDayProgressFlexible(
+      plan,
+      day.date,
+      { juz: 0, hizb: 0, rub: 0, pages: 0, verses: day.targetVerses, customStartPage: refStart },
+      autoNote
+    );
+
+    const amountLabel = formatQuranUnits(day.targetVerses, refStart);
+    onPlanUpdate(updatedPlan, {
+      type: "success",
+      title: day.isReviewDay ? `تم تسجيل ${labels.consolidationNoun} بالكامل` : "تم إتمام ورد اليوم بنجاح",
+      description: `تم تسجيل ${amountLabel}.`,
+      action: {
+        label: "تراجع",
+        onClick: () => {
+          const revertedPlan = undoDayProgress(updatedPlan, day.date);
+          onPlanUpdate(revertedPlan, {
+            type: "info",
+            title: "تم التراجع عن التسجيل",
+            description: "أُعيد اليوم إلى حالة الانتظار.",
+          });
+        },
+      },
+    });
   };
 
   const handleSaveProgress = (dateStr, calculatedVerses, flexibleInput, note) => {
@@ -106,6 +142,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
 
   const completedPages = plan.completedVerses ? versesToPages(plan.completedVerses, plan.startPage) : 0;
   const totalPages = plan.totalPages || 1;
+  const canQuickCompleteToday = todayData && !todayData.isOff && !alreadyRecorded && (todayData.targetVerses || 0) > 0;
 
   return (
     <div className="space-y-8">
@@ -306,24 +343,54 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   </p>
                   {todayData.targetStartPage && (
                     <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg py-1.5 px-3 inline-block">
-                      من ص{toArabicNumbers(todayData.targetStartPage)} إلى ص{toArabicNumbers(todayData.targetEndPage)}
+                      {!todayData.targetEndPage || todayData.targetStartPage === todayData.targetEndPage
+                        ? `صفحة\u00A0${toArabicNumbers(todayData.targetStartPage)}`
+                        : `من ص\u00A0${toArabicNumbers(todayData.targetStartPage)} إلى ص\u00A0${toArabicNumbers(todayData.targetEndPage)}`}
                     </p>
                   )}
                 </div>
-                <Button
-                  type="button"
-                  onClick={() => handleRecordDay(todayData)}
-                  className="w-full mt-4 rounded-xl h-11 font-semibold"
-                  variant={alreadyRecorded ? "outline" : "default"}
-                >
-                  {todayData.status === "skipped"
-                    ? "تم التخطي · تعديل"
-                    : alreadyRecorded
-                    ? `تعديل (${formatQuranUnits(todayData.completedVerses || 0, todayData.targetStartPage || plan.startPage || 1)})`
-                    : todayData.isReviewDay
-                    ? `تسجيل ${labels.consolidationNoun}`
-                    : "تسجيل الإنجاز"}
-                </Button>
+
+                {/* ✅ زر إنجاز فوري بضغطة واحدة + زر تخصيص لفتح النافذة عند الحاجة */}
+                {canQuickCompleteToday ? (
+                  <div className="flex items-center gap-2 mt-4">
+                    <Button
+                      type="button"
+                      onClick={() => handleQuickComplete(todayData)}
+                      className="flex-1 rounded-xl h-11 font-semibold gap-1.5"
+                    >
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span>
+                        {todayData.isReviewDay
+                          ? (labels.isMemorization ? "أتممت التثبيت" : "أتممت الربط")
+                          : "أتممت الورد"}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => handleRecordDay(todayData)}
+                      variant="outline"
+                      className="rounded-xl h-11 px-3.5 sm:px-4 font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:text-primary gap-1.5 shrink-0"
+                    >
+                      <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                      <span>تخصيص</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => handleRecordDay(todayData)}
+                    className="w-full mt-4 rounded-xl h-11 font-semibold"
+                    variant={alreadyRecorded ? "outline" : "default"}
+                  >
+                    {todayData.status === "skipped"
+                      ? "تم التخطي · تعديل"
+                      : alreadyRecorded
+                      ? `تعديل (${formatQuranUnits(todayData.completedVerses || 0, todayData.targetStartPage || plan.startPage || 1)})`
+                      : todayData.isReviewDay
+                      ? `تسجيل ${labels.consolidationNoun}`
+                      : "تسجيل الإنجاز"}
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -345,7 +412,12 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
         </div>
       </div>
 
-      <ScheduleView schedule={plan.schedule || []} onRecordDay={handleRecordDay} planType={planType} />
+      <ScheduleView
+        schedule={plan.schedule || []}
+        onRecordDay={handleRecordDay}
+        onQuickComplete={handleQuickComplete}
+        planType={planType}
+      />
       <FlexibleEntryPanel
         open={dialogOpen}
         onOpenChange={(nextOpen) => {

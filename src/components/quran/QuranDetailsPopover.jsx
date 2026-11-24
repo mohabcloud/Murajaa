@@ -3,9 +3,9 @@ import React, { useMemo } from "react";
 import { Info, BookOpen } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getQuranData, getSurahList } from "@/lib/quranData";
-import { smartQuranDisplay, versesToPages, toArabicNumbers } from "@/lib/quranPlanEngine";
+import { versesToPages, toArabicNumbers } from "@/lib/quranPlanEngine";
+import { getJuzBreakdown } from "@/lib/utils";
 
-// ✅ إزالة الإزاحة السفلية لتتوسط أيقونة Info النص تماماً في جميع المواضع
 export const INFO_ICON_TRIGGER_CLASSES =
   "inline-flex items-center justify-center w-4 h-4 text-muted-foreground " +
   "transition-colors duration-150 cursor-pointer shrink-0 select-none " +
@@ -24,6 +24,25 @@ export default function QuranDetailsPopover({ verses = 0, startPage = 1 }) {
     const hizbCount = totalPages > 0 ? Math.max(1, Math.round((totalPages / 604) * 60)) : 0;
     const rubCount = totalPages > 0 ? Math.max(1, Math.round((totalPages / 604) * 240)) : 0;
 
+    // ✅ حساب عدد الأجزاء بشكل رقمي متسق مع الأحزاب والأرباع (٣٠ للمصحف الكامل)
+    let juzDisplay = "٠";
+    if (totalPages > 0) {
+      const { fullJuz, remainingPages } = getJuzBreakdown(totalPages, safeStart);
+      if (remainingPages === 0 && fullJuz > 0) {
+        juzDisplay = toArabicNumbers(fullJuz);
+      } else {
+        const approxJuz = (totalPages / 604) * 30;
+        if (approxJuz < 0.15) {
+          juzDisplay = "أقل من جزء";
+        } else {
+          const rounded = Math.round(approxJuz * 10) / 10;
+          juzDisplay = Number.isInteger(rounded)
+            ? toArabicNumbers(rounded)
+            : toArabicNumbers(rounded.toFixed(1)).replace(".", "٫");
+        }
+      }
+    }
+
     const surahsInRange = totalPages > 0
       ? surahList.filter((s) => s.endPage >= safeStart && s.startPage <= safeEnd)
       : [];
@@ -34,7 +53,7 @@ export default function QuranDetailsPopover({ verses = 0, startPage = 1 }) {
     return {
       verses,
       totalPages,
-      juzDisplay: smartQuranDisplay(verses, safeStart),
+      juzDisplay,
       hizbCount,
       rubCount,
       surahsInRange,
@@ -46,6 +65,8 @@ export default function QuranDetailsPopover({ verses = 0, startPage = 1 }) {
   }, [verses, startPage]);
 
   if (!verses || verses <= 0) return null;
+
+  const remainingSurahs = Math.max(0, details.surahsInRange.length - 8);
 
   return (
     <Popover>
@@ -106,9 +127,11 @@ export default function QuranDetailsPopover({ verses = 0, startPage = 1 }) {
                     {s.name}
                   </span>
                 ))}
-                {details.surahsInRange.length > 8 && (
-                  <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px]">
-                    ...وغيرها
+                {/* ✅ عرض عدد السور المتبقية بدقة بدلاً من عبارة ...وغيرها */}
+                {remainingSurahs > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-medium text-[11px]">
+                    <span dir="ltr">+{toArabicNumbers(remainingSurahs)}</span>
+                    <span>أخرى</span>
                   </span>
                 )}
               </div>
@@ -117,16 +140,21 @@ export default function QuranDetailsPopover({ verses = 0, startPage = 1 }) {
 
           <div className="border-t border-border/40 my-1.5" />
 
+          {/* ✅ مسافات واضحة ومتوازنة بين الحرف والرقم في سطري البداية والنهاية */}
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">من (جزء/صفحة)</span>
-            <span className="font-semibold text-foreground">
-              ج{toArabicNumbers(details.startJuz)} · ص{toArabicNumbers(details.safeStart)}
+            <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+              <span>ج{"\u00A0"}{toArabicNumbers(details.startJuz)}</span>
+              <span className="text-muted-foreground">·</span>
+              <span>ص{"\u00A0"}{toArabicNumbers(details.safeStart)}</span>
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">إلى (جزء/صفحة)</span>
-            <span className="font-semibold text-foreground">
-              ج{toArabicNumbers(details.endJuz)} · ص{toArabicNumbers(details.safeEnd)}
+            <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+              <span>ج{"\u00A0"}{toArabicNumbers(details.endJuz)}</span>
+              <span className="text-muted-foreground">·</span>
+              <span>ص{"\u00A0"}{toArabicNumbers(details.safeEnd)}</span>
             </span>
           </div>
         </div>

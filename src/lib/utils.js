@@ -43,7 +43,6 @@ export function formatArabicDate(dateStr, opts = {}) {
   const monthAr = ARABIC_MONTHS[d.getMonth()] || "";
   const yearAr = toArabicNumbers(d.getFullYear());
 
-  // ✅ NBSP بين جميع الأجزاء
   if (opts.includeYear) return `${dayAr}${NBSP}${monthAr}${NBSP}${yearAr}`;
   return `${dayAr}${NBSP}${monthAr}`;
 }
@@ -64,6 +63,69 @@ function versesToPages(verses, startPage = 1) {
   return Math.max(1, pages);
 }
 
+// ✅ تخزين مؤقت لحدود صفحات الأجزاء الفعلية (١..٣٠) من بيانات المصحف
+let _cachedJuzRanges = null;
+let _cachedDataRef = null;
+
+function getJuzPageRanges(data) {
+  if (!data?.pageMap) return null;
+  if (_cachedJuzRanges && _cachedDataRef === data) return _cachedJuzRanges;
+
+  const ranges = {};
+  for (let p = 1; p <= 604; p++) {
+    const j = data.pageMap[p]?.juzu;
+    if (!j) continue;
+    if (!ranges[j]) {
+      ranges[j] = { start: p, end: p, count: 1 };
+    } else {
+      ranges[j].end = p;
+      ranges[j].count += 1;
+    }
+  }
+
+  _cachedJuzRanges = ranges;
+  _cachedDataRef = data;
+  return ranges;
+}
+
+// ✅ حساب الأجزاء الكاملة والصفحات المتبقية بناءً على حدود المصحف الفعلية
+export function getJuzBreakdown(pages, startPage = 1) {
+  if (!pages || pages <= 0) return { fullJuz: 0, remainingPages: 0 };
+  if (pages >= 604) return { fullJuz: 30, remainingPages: 0 };
+
+  const data = getQuranData();
+  const ranges = getJuzPageRanges(data);
+  const safeStart = Math.max(1, Math.min(604, startPage || 1));
+  const safeEnd = Math.min(604, safeStart + pages - 1);
+
+  if (ranges) {
+    let fullJuz = 0;
+    let coveredByFullJuz = 0;
+
+    for (let j = 1; j <= 30; j++) {
+      const r = ranges[j];
+      if (r && safeStart <= r.start && safeEnd >= r.end) {
+        fullJuz++;
+        coveredByFullJuz += r.count;
+      }
+    }
+
+    let remainingPages = Math.max(0, pages - coveredByFullJuz);
+
+    if (remainingPages >= 20) {
+      fullJuz += Math.floor(remainingPages / 20);
+      remainingPages = remainingPages % 20;
+    }
+
+    return { fullJuz, remainingPages };
+  }
+
+  return {
+    fullJuz: Math.floor(pages / 20),
+    remainingPages: pages % 20,
+  };
+}
+
 // ✅ جمع عربي مع أرقام عربية
 function formatArabicCount(count, singular, dual, plural, accusative) {
   if (count === 1) return singular;
@@ -74,7 +136,7 @@ function formatArabicCount(count, singular, dual, plural, accusative) {
 }
 
 export function formatQuranUnits(verses, startPage = 1) {
-  if (!verses || verses === 0) return "—";
+  if (!verses || verses <= 0) return "—";
 
   const data = getQuranData();
   let firstPageVerses = 10;
@@ -82,16 +144,16 @@ export function formatQuranUnits(verses, startPage = 1) {
     firstPageVerses = data.pageMap[startPage].verseCount;
   }
 
-  if (verses <= firstPageVerses) {
+  // ✅ استخدام (<) بدلاً من (<=) حتى تُعرض الصفحة الكاملة الواحدة كـ "صفحة واحدة"
+  if (verses < firstPageVerses) {
     return formatArabicCount(verses, "آية واحدة", "آيتان", "آيات", "آية");
   }
 
   const pages = versesToPages(verses, startPage);
-  const juz = Math.floor(pages / 20);
-  const remainingPages = pages % 20;
+  const { fullJuz, remainingPages } = getJuzBreakdown(pages, startPage);
 
-  if (juz >= 1) {
-    const juzStr = formatArabicCount(juz, "جزء واحد", "جزءان", "أجزاء", "جزءاً");
+  if (fullJuz >= 1) {
+    const juzStr = formatArabicCount(fullJuz, "جزء واحد", "جزءان", "أجزاء", "جزءاً");
     if (remainingPages > 0) {
       const pagesStr = formatArabicCount(remainingPages, "صفحة واحدة", "صفحتان", "صفحات", "صفحة");
       return `${juzStr}${NBSP}و${NBSP}${pagesStr}`;
@@ -103,32 +165,7 @@ export function formatQuranUnits(verses, startPage = 1) {
 }
 
 export function smartQuranDisplay(verses, startPage = 1) {
-  if (!verses || verses <= 0) return "—";
-
-  const data = getQuranData();
-  let firstPageVerses = 10;
-  if (data && data.pageMap[startPage]) {
-    firstPageVerses = data.pageMap[startPage].verseCount;
-  }
-
-  if (verses <= firstPageVerses) {
-    return formatArabicCount(verses, "آية واحدة", "آيتان", "آيات", "آية");
-  }
-
-  const pagesCovered = versesToPages(verses, startPage);
-  const juzCount = Math.floor(pagesCovered / 20);
-  const remainingPages = pagesCovered % 20;
-
-  if (juzCount >= 1) {
-    const juzStr = formatArabicCount(juzCount, "جزء واحد", "جزءان", "أجزاء", "جزءاً");
-    if (remainingPages > 0) {
-      const pagesStr = formatArabicCount(remainingPages, "صفحة واحدة", "صفحتان", "صفحات", "صفحة");
-      return `${juzStr}${NBSP}و${NBSP}${pagesStr}`;
-    }
-    return juzStr;
-  }
-
-  return formatArabicCount(pagesCovered, "صفحة واحدة", "صفحتان", "صفحات", "صفحة");
+  return formatQuranUnits(verses, startPage);
 }
 
 export function stripOrnament(text) {

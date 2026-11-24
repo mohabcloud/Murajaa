@@ -1,7 +1,8 @@
+// src/components/quran/ScheduleView.jsx
 import React, { useState, useMemo } from "react";
 import DayCard from "./DayCard";
 import { ChevronDown, ChevronUp, CalendarDays } from "lucide-react";
-import { getLocalToday, parseLocal, toLocalDateStr, toArabicNumbers } from "@/lib/quranPlanEngine";
+import { getLocalToday, toArabicNumbers } from "@/lib/quranPlanEngine";
 
 function formatArabicDaysCount(count) {
   if (count === 1) return "يوم واحد";
@@ -12,29 +13,31 @@ function formatArabicDaysCount(count) {
   return `${ar} يوماً`;
 }
 
-export default function ScheduleView({ schedule, onRecordDay, planType = "review" }) {
+export default function ScheduleView({ schedule, onRecordDay, onQuickComplete, planType = "review" }) {
   const [viewMode, setViewMode] = useState("default");
   const today = getLocalToday();
 
   const futureDays = useMemo(() => {
-    return schedule.filter(day => day.date >= today);
+    return schedule.filter((day) => day.date >= today);
   }, [schedule, today]);
 
+  // ✅ عند وجود بطاقة اليوم بعرض كامل (col-span-full)، نعرض أسفلها ٦ أيام (إجمالي ٧) أو ١٢ يوماً (إجمالي ١٣) لتوازن الشبكة على عمودين وثلاثة أعمدة
+  const hasToday = futureDays.length > 0 && futureDays[0].date === today;
+  const defaultLimit = hasToday ? 7 : 6;
+  const moreLimit = hasToday ? 13 : 12;
+
   const displayDays = useMemo(() => {
-    const endDate = parseLocal(today);
-    endDate.setDate(endDate.getDate() + (viewMode === "default" ? 4 : 13));
-    const endStr = toLocalDateStr(endDate);
-    return futureDays.filter(day => day.date <= endStr);
-  }, [futureDays, today, viewMode]);
+    const limit = viewMode === "default" ? defaultLimit : moreLimit;
+    return futureDays.slice(0, limit);
+  }, [futureDays, viewMode, defaultLimit, moreLimit]);
 
   const displayedCount = displayDays.length;
+  const remainingFutureDays = Math.max(0, futureDays.length - displayedCount);
+  const canToggleMore = futureDays.length > defaultLimit;
 
   const toggleView = () => {
-    setViewMode(viewMode === "default" ? "more" : "default");
+    setViewMode((prev) => (prev === "default" ? "more" : "default"));
   };
-
-  // ✅ حساب الأيام المتبقية من الأيام القادمة فعلياً (وليس الأيام الماضية المنتهية)
-  const remainingFutureDays = Math.max(0, futureDays.length - displayedCount);
 
   return (
     <div>
@@ -43,17 +46,22 @@ export default function ScheduleView({ schedule, onRecordDay, planType = "review
           <CalendarDays className="w-5 h-5 text-primary" />
           <h3 className="text-lg font-bold font-heading text-foreground">الجدول اليومي</h3>
         </div>
-        <button
-          onClick={toggleView}
-          className="flex items-center gap-1 rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 hover:text-primary"
-        >
-          {viewMode === "default" ? "عرض أكثر" : "عرض أقل"}
-          {viewMode === "default" ? (
-            <ChevronDown className="w-4 h-4 stroke-[2.2]" />
-          ) : (
-            <ChevronUp className="w-4 h-4 stroke-[2.2]" />
-          )}
-        </button>
+
+        {/* ✅ إظهار زر "عرض أكثر" فقط عند وجود أيام إضافية خارج العرض الافتراضي */}
+        {canToggleMore && (
+          <button
+            type="button"
+            onClick={toggleView}
+            className="flex items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            {viewMode === "default" ? "عرض أكثر" : "عرض أقل"}
+            {viewMode === "default" ? (
+              <ChevronDown className="w-4 h-4 stroke-[2.2]" />
+            ) : (
+              <ChevronUp className="w-4 h-4 stroke-[2.2]" />
+            )}
+          </button>
+        )}
       </div>
 
       {displayDays.length === 0 ? (
@@ -61,31 +69,30 @@ export default function ScheduleView({ schedule, onRecordDay, planType = "review
           لا توجد أيام متبقية في الخطة
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        // ✅ شبكة متساوية الارتفاع (بدون items-start) مع توازن عمودين على التابلت وثلاثة أعمدة على الشاشات العريضة
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {displayDays.map((day) => (
             <DayCard
               key={day.date}
               day={day}
               isToday={day.date === today}
               onRecord={onRecordDay}
+              onQuickComplete={onQuickComplete}
               planType={planType}
             />
           ))}
         </div>
       )}
 
-      <div className="text-center mt-4">
-        <p className="text-xs text-muted-foreground">
-          {viewMode === "default"
-            ? `يُعرَض ${formatArabicDaysCount(displayedCount)} (الأيام الخمسة القادمة)`
-            : `يُعرَض ${formatArabicDaysCount(displayedCount)} (الأسبوعين القادمين)`}
-          {remainingFutureDays > 0 && (
-            <span className="block mt-1">
-              باقي {formatArabicDaysCount(remainingFutureDays)} في الخطة
-            </span>
-          )}
-        </p>
-      </div>
+      {displayedCount > 0 && (
+        <div className="text-center mt-4">
+          <p className="text-xs text-muted-foreground">
+            {remainingFutureDays === 0
+              ? `يُعرَض ${formatArabicDaysCount(displayedCount)} (كامل المتبقي في الخطة)`
+              : `يُعرَض ${formatArabicDaysCount(displayedCount)} · باقي ${formatArabicDaysCount(remainingFutureDays)} في الخطة`}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

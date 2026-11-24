@@ -5,7 +5,7 @@ import { initQuranData } from "@/lib/quranData";
 import { syncPlanSchedule, toArabicNumbers, getLocalToday } from "@/lib/quranPlanEngine";
 import CreatePlanForm from "@/components/quran/CreatePlanForm";
 import Dashboard from "@/components/quran/Dashboard";
-import { BookOpen, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff, MoreVertical } from "lucide-react";
+import { BookOpen, BookmarkCheck, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff, MoreVertical } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -19,8 +19,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// ===== دالة عرض Toast مخصصة =====
-const showCustomToast = (type, title, description) => {
+// ===== دالة عرض Toast مخصصة (مع دعم إجراء اختياري مثل التراجع) =====
+const showCustomToast = (type, title, description, extraOpts = {}) => {
   const content = (
     <div className="w-full text-right" dir="rtl">
       <p className="font-semibold text-foreground">{title}</p>
@@ -28,7 +28,11 @@ const showCustomToast = (type, title, description) => {
     </div>
   );
 
-  const opts = { duration: 4000, className: "murajaa-toast" };
+  const opts = {
+    duration: extraOpts.action ? 5500 : 4000,
+    className: "murajaa-toast",
+    ...extraOpts,
+  };
 
   if (type === 'success') toast.success(content, opts);
   else if (type === 'error') toast.error(content, opts);
@@ -71,20 +75,17 @@ export default function Home() {
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveLoading, setDriveLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  // ✅ تتبع نوع الخطة أثناء الإنشاء أو التعديل لتفعيل ثيمها الخاص فوراً
   const [draftPlanType, setDraftPlanType] = useState("review");
 
   const driveTimeoutRef = useRef(null);
   const mobileImportInputRef = useRef(null);
 
-  // ✅ التمرير التلقائي إلى بداية الصفحة بعد تبديل الواجهة (مثل إنشاء خطة جديدة)
   const scrollToPageTop = () => {
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   };
 
-  // ✅ تحديد الثيم النشط بدقة: ثيم المراجعة الزمردي لخطط المراجعة، وثيم الحفظ الذهبي لخطط الحفظ
   const currentThemeType = (showCreateForm || isEditSheetOpen)
     ? draftPlanType
     : (activePlan?.planType || "review");
@@ -249,12 +250,23 @@ export default function Home() {
     showCustomToast('success', 'تم إنشاء الخطة بنجاح', `الخطة "${saved.name}" جاهزة للبدء.`);
   };
 
-  const handlePlanUpdate = (updatedPlan) => {
+  // ✅ دعم إشعار مخصص (مثل إشعار الإنجاز السريع المزوّد بزر التراجع)
+  const handlePlanUpdate = (updatedPlan, customToast = null) => {
     if (!updatedPlan.schedule) updatedPlan.schedule = [];
     const saved = savePlan(updatedPlan);
     setAllPlans(prev => prev.map(p => p.id === saved.id ? saved : p));
     setActivePlan(saved);
-    showCustomToast('success', 'تم تحديث الخطة', `تم حفظ التغييرات في "${saved.name}".`);
+
+    if (customToast) {
+      showCustomToast(
+        customToast.type || 'success',
+        customToast.title || 'تم تحديث الخطة',
+        customToast.description,
+        customToast.action ? { action: customToast.action } : {}
+      );
+    } else {
+      showCustomToast('success', 'تم تحديث الخطة', `تم حفظ التغييرات في "${saved.name}".`);
+    }
   };
 
   const handleDeletePlan = (id) => {
@@ -368,7 +380,7 @@ export default function Home() {
           <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
           <h2 className="text-xl font-bold text-destructive mb-2">حدث خطأ أثناء تحميل بيانات القرآن</h2>
           <p className="text-muted-foreground text-sm mb-4">{error}</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors">
+          <button type="button" onClick={() => window.location.reload()} className="px-6 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors">
             إعادة تحميل
           </button>
         </div>
@@ -398,7 +410,11 @@ export default function Home() {
           {/* الشعار والعنوان */}
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-primary flex items-center justify-center shadow-sm shadow-primary/20 shrink-0 transition-colors duration-300">
-              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" strokeWidth={2.5} />
+              {currentThemeType === "memorization" ? (
+                <BookmarkCheck className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" strokeWidth={2.5} />
+              ) : (
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" strokeWidth={2.5} />
+              )}
             </div>
             <div className="flex flex-col justify-center min-w-0">
               <h1 className="text-base sm:text-lg font-bold font-heading text-foreground leading-tight whitespace-nowrap">
@@ -413,11 +429,11 @@ export default function Home() {
           {/* أزرار الأدوات */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* 1. عرض سطح المكتب والأجهزة اللوحية (sm فأكبر) */}
-            <div className="hidden sm:flex items-center gap-1 border-l border-border/40 pl-2">
+            <div className="hidden sm:flex items-center gap-1 border-e border-border/40 pe-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={handleExport} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200">
+                    <button type="button" onClick={handleExport} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200">
                       <Download className="w-4 h-4 text-foreground" />
                     </button>
                   </TooltipTrigger>
@@ -446,7 +462,7 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={handleManualSync} disabled={!driveConnected || syncing} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
+                    <button type="button" onClick={handleManualSync} disabled={!driveConnected || syncing} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
                       {syncing ? (
                         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : (
@@ -463,7 +479,7 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive} disabled={driveLoading} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
+                    <button type="button" onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive} disabled={driveLoading} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
                       {driveLoading ? (
                         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : driveConnected ? (
@@ -562,7 +578,7 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={toggleDarkMode} className="h-9 w-9 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200">
+                    <button type="button" onClick={toggleDarkMode} className="h-9 w-9 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200">
                       {isDark ? <Sun className="w-4 h-4 text-foreground" /> : <Moon className="w-4 h-4 text-foreground" />}
                     </button>
                   </TooltipTrigger>
@@ -598,7 +614,7 @@ export default function Home() {
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground">لا توجد خطط حالياً. يمكنك إنشاء خطة جديدة.</p>
-            <Button onClick={handleNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
+            <Button type="button" onClick={handleNewPlan} className="mt-4">إنشاء خطة جديدة</Button>
           </div>
         )}
       </main>

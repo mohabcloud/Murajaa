@@ -4,11 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, BookOpen, RotateCcw, ChevronUp, ChevronDown, LayoutGrid, Target, SkipForward, RefreshCw, Coffee } from "lucide-react";
+import { Check, BookOpen, RotateCcw, ChevronUp, ChevronDown, LayoutGrid, Target, SkipForward, RefreshCw, Coffee, ArrowLeft } from "lucide-react";
 import {
   formatQuranUnits,
   flexibleInputToVerses,
   versesToPagesCount,
+  getVersesBetween,
   toArabicNumbers,
   formatArabicDate,
   getPlanLabels,
@@ -43,10 +44,27 @@ export default function FlexibleEntryPanel({
   const [guidedClearCount, setGuidedClearCount] = useState(0);
 
   const labels = getPlanLabels(planType);
+  const consolidationProposalLabel = labels.isMemorization ? "مقترح التثبيت" : "مقترح الربط";
 
   useEffect(() => {
     if (day) {
       setNote(day.note || "");
+      const existingVerses = day.isReviewDay
+        ? (day.consolidationVerses || day.completedVerses || 0)
+        : (day.completedVerses || 0);
+
+      if (existingVerses > 0) {
+        setInput({
+          juz: 0,
+          hizb: 0,
+          rub: 0,
+          pages: 0,
+          verses: existingVerses,
+          customStartPage: day.targetStartPage || 1,
+        });
+      } else {
+        setInput({ juz: 0, hizb: 0, rub: 0, pages: 0, verses: 0, customStartPage: null });
+      }
     }
     setGuidedFilled(false);
     setGuidedFillCount(0);
@@ -62,8 +80,8 @@ export default function FlexibleEntryPanel({
 
   const diff = day ? (calculatedVerses - targetVerses) : 0;
 
-  // ✅ تبديل التعبئة التلقائية: تعبئة في الضغطة الأولى، وإزالة التحديد في الضغطة الثانية
-  const toggleGuidedReview = () => {
+  // ✅ تبديل التعبئة التلقائية: يفكك الصفحات الكاملة بدقة أو الآيات الدقيقة، ويزيل التحديد عند الضغط مرة أخرى
+  const toggleGuidedFill = () => {
     if (!day || (day.targetVerses <= 0 && (!day.targetStartPage || !day.targetEndPage))) return;
 
     if (guidedFilled) {
@@ -75,7 +93,10 @@ export default function FlexibleEntryPanel({
     }
 
     const refStart = day.targetStartPage || 1;
-    if (day.targetStartPage && day.targetEndPage) {
+    const hasPageRange = !!(day.targetStartPage && day.targetEndPage);
+    const exactRangeVerses = hasPageRange ? getVersesBetween(day.targetStartPage, day.targetEndPage) : 0;
+
+    if (hasPageRange && (day.targetVerses === 0 || day.targetVerses === exactRangeVerses)) {
       const totalPagesCount = Math.max(1, day.targetEndPage - day.targetStartPage + 1);
       const juzCount = Math.floor(totalPagesCount / 20);
       const remPages = totalPagesCount % 20;
@@ -101,8 +122,11 @@ export default function FlexibleEntryPanel({
       });
     }
 
-    if (day.targetStartPage && day.targetEndPage) {
-      setNote(`${labels.consolidationNoun} ص${toArabicNumbers(day.targetStartPage)} إلى ص${toArabicNumbers(day.targetEndPage)}`);
+    if (day.isReviewDay && day.targetStartPage) {
+      const rangeText = !day.targetEndPage || day.targetStartPage === day.targetEndPage
+        ? `صفحة\u00A0${toArabicNumbers(day.targetStartPage)}`
+        : `ص\u00A0${toArabicNumbers(day.targetStartPage)} إلى ص\u00A0${toArabicNumbers(day.targetEndPage)}`;
+      setNote(`${labels.consolidationNoun} ${rangeText}`);
     }
 
     setGuidedFilled(true);
@@ -160,6 +184,8 @@ export default function FlexibleEntryPanel({
 
   if (!day) return null;
 
+  const canQuickFill = !day.isOff && (day.targetVerses > 0 || (day.targetStartPage && day.targetEndPage));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -191,17 +217,27 @@ export default function FlexibleEntryPanel({
               <div className="mt-1 space-y-1">
                 <p className="text-base font-bold text-foreground flex items-center justify-center gap-1.5">
                   <RefreshCw className="w-4 h-4 text-primary" />
-                  <span>{labels.consolidationNoun} (مقترح الدورة السابقة):</span>
+                  <span>{consolidationProposalLabel} (الدورة السابقة):</span>
                 </p>
                 {targetVerses > 0 ? (
-                  <p className="text-lg font-bold text-primary">
-                    {formatQuranUnits(targetVerses, day.targetStartPage || 1)}
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    <span className="text-lg font-bold text-primary">
+                      {formatQuranUnits(targetVerses, day.targetStartPage || 1)}
+                    </span>
                     {day.targetStartPage && (
-                      <span className="text-xs font-normal text-muted-foreground ms-2">
-                        (ص{toArabicNumbers(day.targetStartPage)} ← ص{toArabicNumbers(day.targetEndPage)})
+                      <span className="inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                        {!day.targetEndPage || day.targetStartPage === day.targetEndPage ? (
+                          <span>(صفحة{"\u00A0"}{toArabicNumbers(day.targetStartPage)})</span>
+                        ) : (
+                          <>
+                            <span>(ص{"\u00A0"}{toArabicNumbers(day.targetStartPage)}</span>
+                            <ArrowLeft className="w-3 h-3 shrink-0" />
+                            <span>ص{"\u00A0"}{toArabicNumbers(day.targetEndPage)})</span>
+                          </>
+                        )}
                       </span>
                     )}
-                  </p>
+                  </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">اختر أي مقدار تريد تثبيته</p>
                 )}
@@ -213,38 +249,38 @@ export default function FlexibleEntryPanel({
             )}
           </div>
 
-          {day.isReviewDay && (day.targetVerses > 0 || (day.targetStartPage && day.targetEndPage)) && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={toggleGuidedReview}
-              className={`w-full rounded-xl font-semibold transition-colors ${
-                guidedFilled
-                  ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                  : "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-              }`}
-            >
-              {guidedFilled ? (
-                <><Check className="w-4 h-4 me-2" /> تمت التعبئة (اضغط للإلغاء)</>
-              ) : (
-                <><Target className="w-4 h-4 me-2" /> تعبئة بمقترح الدورة السابقة</>
-              )}
-            </Button>
-          )}
-
           <div className="min-w-0 w-full">
-            <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 min-w-0">
               <Label className="text-sm font-semibold text-foreground leading-normal">
                 {day.isReviewDay ? `ماذا ثبّتَّ اليوم؟` : `ماذا أنجزت اليوم؟`}
               </Label>
-              <button
-                type="button"
-                onClick={() => setUseVisualMode(!useVisualMode)}
-                className="text-xs bg-primary/10 text-primary font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-primary/20 transition-colors shrink-0 whitespace-nowrap"
-              >
-                {useVisualMode ? <><Check className="w-3.5 h-3.5 shrink-0"/> إدخال رقمي</> : <><LayoutGrid className="w-3.5 h-3.5 shrink-0"/> واجهة المصحف</>}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {canQuickFill && (
+                  <button
+                    type="button"
+                    onClick={toggleGuidedFill}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-full flex items-center gap-1 transition-colors shrink-0 whitespace-nowrap border ${
+                      guidedFilled
+                        ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                        : "bg-primary/10 text-primary border-primary/25 hover:bg-primary/20"
+                    }`}
+                  >
+                    {/* ✅ تصحيح لغوي: "تمت التعبئة" */}
+                    {guidedFilled ? (
+                      <><Check className="w-3.5 h-3.5 shrink-0" /> تمت التعبئة</>
+                    ) : (
+                      <><Target className="w-3.5 h-3.5 shrink-0" /> {day.isReviewDay ? "تعبئة المقترح" : "تعبئة الورد"}</>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setUseVisualMode(!useVisualMode)}
+                  className="text-xs bg-primary/10 text-primary font-semibold px-2.5 py-1.5 rounded-full flex items-center gap-1 hover:bg-primary/20 transition-colors shrink-0 whitespace-nowrap"
+                >
+                  {useVisualMode ? <><Check className="w-3.5 h-3.5 shrink-0"/> إدخال رقمي</> : <><LayoutGrid className="w-3.5 h-3.5 shrink-0"/> واجهة المصحف</>}
+                </button>
+              </div>
             </div>
 
             <div className={useVisualMode ? "min-w-0 w-full" : "hidden"}>
@@ -339,12 +375,13 @@ export default function FlexibleEntryPanel({
               </div>
             )}
 
-            <div className={`bg-card border rounded-xl p-4 text-center mt-3 transition-colors ${
+            {/* ✅ تصغير حجم خط الإجمالي المحسوب ليتناسق مع بقية عناصر النافذة */}
+            <div className={`bg-card border rounded-xl p-3.5 text-center mt-3 transition-colors ${
               guidedFilled ? "border-primary/40 bg-primary/5" : "border-border/60"
             }`}>
-              <p className="text-sm text-muted-foreground">الإجمالي المحسوب</p>
+              <p className="text-xs text-muted-foreground">الإجمالي المحسوب</p>
               {calculatedVerses > 0 ? (
-                <p className="text-2xl sm:text-3xl font-bold text-primary mt-1">
+                <p className="text-xl sm:text-2xl font-bold text-primary mt-1 leading-snug">
                   {formatQuranUnits(calculatedVerses, startPage)}
                 </p>
               ) : (
@@ -371,7 +408,7 @@ export default function FlexibleEntryPanel({
         </div>
 
         <DialogFooter className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 rounded-2xl font-semibold">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 rounded-2xl font-semibold">
             إلغاء
           </Button>
           {!day.isOff && day.status !== "skipped" && onSkip && (
@@ -384,11 +421,12 @@ export default function FlexibleEntryPanel({
             </Button>
           )}
           {alreadyRecorded && (
-            <Button onClick={handleUndo} className="flex-1 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/20 font-semibold">
+            <Button type="button" onClick={handleUndo} className="flex-1 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/20 font-semibold">
               <RotateCcw className="w-4 h-4 me-1.5" /> تراجع
             </Button>
           )}
           <Button
+            type="button"
             onClick={handleSave}
             className="flex-1 rounded-2xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={calculatedVerses === 0}

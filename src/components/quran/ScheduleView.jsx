@@ -21,15 +21,14 @@ export default function ScheduleView({ schedule, onRecordDay, onQuickComplete, p
     return schedule.filter((day) => day.date >= today);
   }, [schedule, today]);
 
-  // ✅ عند وجود بطاقة اليوم بعرض كامل (col-span-full)، نعرض أسفلها ٦ أيام (إجمالي ٧) أو ١٢ يوماً (إجمالي ١٣) لتوازن الشبكة على عمودين وثلاثة أعمدة
-  const hasToday = futureDays.length > 0 && futureDays[0].date === today;
-  const defaultLimit = hasToday ? 7 : 6;
-  const moreLimit = hasToday ? 13 : 12;
+  // ✅ عرض ٤ أيام افتراضياً و٧ أيام عند الضغط على "عرض المزيد"
+  const defaultLimit = 4;
+  const moreLimit = 7;
 
   const displayDays = useMemo(() => {
     const limit = viewMode === "default" ? defaultLimit : moreLimit;
     return futureDays.slice(0, limit);
-  }, [futureDays, viewMode, defaultLimit, moreLimit]);
+  }, [futureDays, viewMode]);
 
   const displayedCount = displayDays.length;
   const remainingFutureDays = Math.max(0, futureDays.length - displayedCount);
@@ -47,14 +46,13 @@ export default function ScheduleView({ schedule, onRecordDay, onQuickComplete, p
           <h3 className="text-lg font-bold font-heading text-foreground">الجدول اليومي</h3>
         </div>
 
-        {/* ✅ إظهار زر "عرض أكثر" فقط عند وجود أيام إضافية خارج العرض الافتراضي */}
         {canToggleMore && (
           <button
             type="button"
             onClick={toggleView}
             className="flex items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 hover:text-primary"
           >
-            {viewMode === "default" ? "عرض أكثر" : "عرض أقل"}
+            {viewMode === "default" ? "عرض المزيد" : "عرض أقل"}
             {viewMode === "default" ? (
               <ChevronDown className="w-4 h-4 stroke-[2.2]" />
             ) : (
@@ -69,7 +67,6 @@ export default function ScheduleView({ schedule, onRecordDay, onQuickComplete, p
           لا توجد أيام متبقية في الخطة
         </div>
       ) : (
-        // ✅ شبكة متساوية الارتفاع (بدون items-start) مع توازن عمودين على التابلت وثلاثة أعمدة على الشاشات العريضة
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {displayDays.map((day) => (
             <DayCard

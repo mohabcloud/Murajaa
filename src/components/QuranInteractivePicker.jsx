@@ -289,7 +289,8 @@ export default function QuranInteractivePicker({
               return (
                 <button key={index} type="button" onClick={() => handleVerseClick(index)} className={className}>
                   <span>{item.text}</span>
-                  <span className="text-sm sm:text-base text-muted-foreground ms-1.5 font-serif inline-block">
+                  {/* ✅ توسيط علامة نهاية الآية رأسياً مع منتصف نص الآية وتكبيرها نسبياً لوضوح الرقم */}
+                  <span className="text-[1.15em] text-muted-foreground ms-1.5 font-serif inline-block leading-none align-baseline translate-y-[0.18em]">
                     ۝{toArabicNumbers(item.verseNumber)}
                   </span>
                 </button>

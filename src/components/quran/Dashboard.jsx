@@ -88,7 +88,6 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
     setDialogOpen(true);
   };
 
-  // ✅ إنجاز الورد المقرر بالكامل بضغطة واحدة مع زر تراجع فوري في الإشعار
   const handleQuickComplete = (day) => {
     if (!day || day.isOff || !(day.targetVerses > 0)) return;
     const refStart = day.targetStartPage || plan.startPage || 1;
@@ -286,7 +285,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-card rounded-2xl border border-border/60 p-6 flex flex-col items-center justify-center">
+        <div className="bg-card rounded-2xl border border-border/60 p-5 sm:p-6 flex flex-col items-center justify-center">
           <ProgressRing progress={progress || 0} />
           <div className="mt-4 text-center space-y-1">
             <p className="text-sm text-muted-foreground">
@@ -302,7 +301,8 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
         </div>
 
         {todayData && (
-          <div className={`rounded-2xl border p-6 ${
+          // ✅ ضبط الحشوة الداخلية على الهاتف (p-4 sm:p-6) مع min-w-0 لمنع تجاوز الحواف
+          <div className={`rounded-2xl border p-4 sm:p-6 min-w-0 ${
             todayData.isOff
               ? 'bg-secondary/50 border-border/40'
               : 'bg-primary/5 border-primary/20'
@@ -332,7 +332,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
               </div>
             ) : (
               <>
-                <div className="text-center py-2.5 space-y-2">
+                <div className="text-center py-2 space-y-2">
                   <p className="text-2xl sm:text-3xl font-bold text-primary leading-snug">
                     {todayData.targetVerses > 0
                       ? formatQuranUnits(todayData.targetVerses, todayData.targetStartPage || plan.startPage || 1)
@@ -350,16 +350,16 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   )}
                 </div>
 
-                {/* ✅ زر إنجاز فوري بضغطة واحدة + زر تخصيص لفتح النافذة عند الحاجة */}
+                {/* ✅ تخطيط مرن متماثل الهوامش على الهاتف مع التفاف آمن عند تكبير الخط */}
                 {canQuickCompleteToday ? (
-                  <div className="flex items-center gap-2 mt-4">
+                  <div className="flex flex-wrap items-center gap-2 mt-4 w-full">
                     <Button
                       type="button"
                       onClick={() => handleQuickComplete(todayData)}
-                      className="flex-1 rounded-xl h-11 font-semibold gap-1.5"
+                      className="flex-[3_1_150px] min-w-0 rounded-xl h-10 sm:h-11 px-3 sm:px-4 text-sm font-semibold gap-1.5"
                     >
                       <Check className="w-4 h-4 shrink-0" />
-                      <span>
+                      <span className="truncate">
                         {todayData.isReviewDay
                           ? (labels.isMemorization ? "أتممت التثبيت" : "أتممت الربط")
                           : "أتممت الورد"}
@@ -369,9 +369,9 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                       type="button"
                       onClick={() => handleRecordDay(todayData)}
                       variant="outline"
-                      className="rounded-xl h-11 px-3.5 sm:px-4 font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:text-primary gap-1.5 shrink-0"
+                      className="flex-[2_1_95px] sm:flex-none min-w-0 rounded-xl h-10 sm:h-11 px-3 sm:px-4 text-sm font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:text-primary gap-1.5"
                     >
-                      <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                      <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
                       <span>تخصيص</span>
                     </Button>
                   </div>
@@ -379,7 +379,7 @@ export default function Dashboard({ plan, allPlans, onPlanUpdate, onDeletePlan, 
                   <Button
                     type="button"
                     onClick={() => handleRecordDay(todayData)}
-                    className="w-full mt-4 rounded-xl h-11 font-semibold"
+                    className="w-full mt-4 rounded-xl h-10 sm:h-11 text-sm font-semibold"
                     variant={alreadyRecorded ? "outline" : "default"}
                   >
                     {todayData.status === "skipped"

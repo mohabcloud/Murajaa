@@ -5,7 +5,7 @@ import { initQuranData } from "@/lib/quranData";
 import { syncPlanSchedule, toArabicNumbers, getLocalToday } from "@/lib/quranPlanEngine";
 import CreatePlanForm from "@/components/quran/CreatePlanForm";
 import Dashboard from "@/components/quran/Dashboard";
-import { BookOpen, BookmarkCheck, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff, MoreVertical } from "lucide-react";
+import { BookOpen, BookmarkCheck, Moon, Sun, AlertCircle, Download, Upload, RefreshCw, Cloud, CloudOff, MoreVertical, Smartphone, WifiOff } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -76,6 +76,13 @@ export default function Home() {
   const [driveLoading, setDriveLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [draftPlanType, setDraftPlanType] = useState("review");
+  // ✅ متابعة حالة الاتصال بالإنترنت وإتاحة تثبيت التطبيق (PWA)
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  });
 
   const driveTimeoutRef = useRef(null);
   const mobileImportInputRef = useRef(null);
@@ -90,13 +97,55 @@ export default function Home() {
     ? draftPlanType
     : (activePlan?.planType || "review");
 
+  // ✅ تحديث الثيم ولون شريط الحالة في التطبيق المثبّت (theme-color) تلقائياً
   useEffect(() => {
     if (currentThemeType === "memorization") {
       document.documentElement.setAttribute("data-plan-theme", "memorization");
     } else {
       document.documentElement.removeAttribute("data-plan-theme");
     }
-  }, [currentThemeType]);
+
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      const color = isDark
+        ? (currentThemeType === "memorization" ? "#16130e" : "#0d1714")
+        : (currentThemeType === "memorization" ? "#ad8229" : "#1A6E5A");
+      themeColorMeta.setAttribute("content", color);
+    }
+  }, [currentThemeType, isDark]);
+
+  // ✅ التقاط حدث التثبيت لإتاحة زر "تثبيت التطبيق" للأجهزة الداعمة
+  useEffect(() => {
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+      showCustomToast('success', 'تم تثبيت التطبيق بنجاح', 'يمكنك الآن فتح مُراجِع من الشاشة الرئيسية والعمل بدون إنترنت.');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    try {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setInstallPrompt(null);
+      }
+    } catch (err) {
+      console.warn('⚠️ Install prompt failed:', err);
+    }
+  };
 
   const reloadPlans = () => {
     try {
@@ -111,6 +160,10 @@ export default function Home() {
   };
 
   const handleManualSync = async () => {
+    if (!isOnline) {
+      showCustomToast('info', 'أنت في وضع عدم الاتصال', 'بياناتك محفوظة على جهازك، وستتمكن من المزامنة فور عودة الإنترنت.');
+      return;
+    }
     if (!driveConnected || !checkSignedIn()) {
       setDriveConnected(false);
       showCustomToast('warning', 'غير متصل بـ Drive', 'يرجى ربط حساب Google أولاً.');
@@ -134,8 +187,10 @@ export default function Home() {
     }
   };
 
+  // ✅ تهيئة Google Drive عند بدء التشغيل (فقط عند توفر الإنترنت)
   useEffect(() => {
     const initDrive = async () => {
+      if (!navigator.onLine) return;
       try {
         await initGoogleDrive();
         const signedIn = checkSignedIn();
@@ -159,7 +214,44 @@ export default function Home() {
     initDrive();
   }, []);
 
+  // ✅ مراقبة عودة وانقطاع الإنترنت والمزامنة التلقائية الصامتة عند عودة الاتصال
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      try {
+        await initGoogleDrive();
+        const signedIn = checkSignedIn();
+        setDriveConnected(signedIn);
+        if (signedIn) {
+          const plans = await syncFromDrive();
+          if (plans) {
+            reloadPlans();
+            showCustomToast('success', 'عاد الاتصال وتمت المزامنة', 'تم تحديث خططك مع Google Drive تلقائياً.');
+          }
+        }
+      } catch (err) {
+        setDriveConnected(checkSignedIn());
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const handleConnectDrive = async () => {
+    if (!isOnline) {
+      showCustomToast('info', 'أنت في وضع عدم الاتصال', 'يمكنك المتابعة بالعمل محلياً وربط Google Drive عند عودة الإنترنت.');
+      return;
+    }
+
     setDriveLoading(true);
     driveTimeoutRef.current = setTimeout(() => {
       setDriveLoading(false);
@@ -250,7 +342,6 @@ export default function Home() {
     showCustomToast('success', 'تم إنشاء الخطة بنجاح', `الخطة "${saved.name}" جاهزة للبدء.`);
   };
 
-  // ✅ دعم إشعار مخصص (مثل إشعار الإنجاز السريع المزوّد بزر التراجع)
   const handlePlanUpdate = (updatedPlan, customToast = null) => {
     if (!updatedPlan.schedule) updatedPlan.schedule = [];
     const saved = savePlan(updatedPlan);
@@ -403,6 +494,8 @@ export default function Home() {
     border: isDark ? 'hsl(var(--border))' : '#e2e8f0',
   };
 
+  const canInstallPwa = Boolean(installPrompt && !isStandalone);
+
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border/50">
@@ -417,9 +510,21 @@ export default function Home() {
               )}
             </div>
             <div className="flex flex-col justify-center min-w-0">
-              <h1 className="text-base sm:text-lg font-bold font-heading text-foreground leading-tight whitespace-nowrap">
-                مُراجِع
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-bold font-heading text-foreground leading-tight whitespace-nowrap">
+                  مُراجِع
+                </h1>
+                {/* ✅ شارة لطيفة توضح وضع عدم الاتصال مع استمرار الحفظ المحلي */}
+                {!isOnline && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/60 whitespace-nowrap"
+                    title="أنت تعمل بدون إنترنت وبياناتك محفوظة محلياً"
+                  >
+                    <WifiOff className="w-3 h-3 shrink-0" />
+                    <span className="hidden xs:inline sm:inline">أوفلاين</span>
+                  </span>
+                )}
+              </div>
               <p className="hidden sm:block text-[11px] text-muted-foreground leading-tight whitespace-nowrap mt-0.5">
                 إدارة حفظ ومراجعة القرآن
               </p>
@@ -429,6 +534,28 @@ export default function Home() {
           {/* أزرار الأدوات */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* 1. عرض سطح المكتب والأجهزة اللوحية (sm فأكبر) */}
+            {canInstallPwa && (
+              <div className="hidden sm:flex items-center border-e border-border/40 pe-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleInstallApp}
+                        className="h-9 px-3 rounded-xl flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/25 hover:bg-primary/15 active:scale-95 transition-all duration-200 text-xs font-semibold"
+                      >
+                        <Smartphone className="w-4 h-4 shrink-0" />
+                        <span>تثبيت التطبيق</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
+                      <p>حفظ مُراجِع كتطبيق يعمل بدون إنترنت</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
+
             <div className="hidden sm:flex items-center gap-1 border-e border-border/40 pe-2">
               <TooltipProvider>
                 <Tooltip>
@@ -462,16 +589,16 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" onClick={handleManualSync} disabled={!driveConnected || syncing} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
+                    <button type="button" onClick={handleManualSync} disabled={!isOnline || !driveConnected || syncing} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
                       {syncing ? (
                         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <RefreshCw className={`w-4 h-4 ${!driveConnected ? 'text-muted-foreground/50' : 'text-foreground'}`} />
+                        <RefreshCw className={`w-4 h-4 ${!isOnline || !driveConnected ? 'text-muted-foreground/50' : 'text-foreground'}`} />
                       )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
-                    <p>{!driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}</p>
+                    <p>{!isOnline ? 'وضع بدون إنترنت · الحفظ محلياً' : !driveConnected ? 'غير متصل بـ Drive' : 'مزامنة مع Drive'}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -479,7 +606,7 @@ export default function Home() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive} disabled={driveLoading} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
+                    <button type="button" onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive} disabled={driveLoading || (!isOnline && !driveConnected)} className="h-9 w-9 p-0 rounded-xl flex items-center justify-center bg-transparent hover:bg-muted/40 active:scale-95 transition-all duration-200 disabled:opacity-50">
                       {driveLoading ? (
                         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       ) : driveConnected ? (
@@ -490,7 +617,7 @@ export default function Home() {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs border" style={{ backgroundColor: tooltipColors.bg, color: tooltipColors.text, borderColor: tooltipColors.border, borderRadius: '6px', padding: '4px 10px', fontSize: '12px' }}>
-                    <p>{driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}</p>
+                    <p>{!isOnline ? 'لا يوجد اتصال بالإنترنت' : driveConnected ? 'فصل Google Drive' : 'ربط Google Drive'}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -498,6 +625,17 @@ export default function Home() {
 
             {/* 2. عرض الهاتف (< sm) */}
             <div className="flex sm:hidden items-center gap-1">
+              {canInstallPwa && (
+                <button
+                  type="button"
+                  onClick={handleInstallApp}
+                  aria-label="تثبيت التطبيق على الهاتف"
+                  className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 border border-primary/30 text-primary active:scale-95 transition-all duration-200 focus:outline-none"
+                >
+                  <Smartphone className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={driveConnected ? handleDisconnectDrive : handleConnectDrive}
@@ -546,9 +684,21 @@ export default function Home() {
                   onCloseAutoFocus={(e) => e.preventDefault()}
                   className="w-52 p-1.5 rounded-2xl"
                 >
+                  {canInstallPwa && (
+                    <>
+                      <DropdownMenuItem
+                        onClick={handleInstallApp}
+                        className="rounded-xl px-3 py-2.5 text-sm font-semibold text-primary cursor-pointer flex items-center gap-2.5 focus:bg-primary/15 focus:text-primary"
+                      >
+                        <Smartphone className="w-4 h-4 text-primary" />
+                        <span>تثبيت التطبيق على الهاتف</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem
                     onClick={handleManualSync}
-                    disabled={!driveConnected || syncing}
+                    disabled={!isOnline || !driveConnected || syncing}
                     className="rounded-xl px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2.5 focus:bg-primary/15 focus:text-foreground"
                   >
                     <RefreshCw className={`w-4 h-4 text-primary ${syncing ? 'animate-spin' : ''}`} />

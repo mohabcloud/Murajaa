@@ -13,6 +13,10 @@ let tokenClient = null;
 let isSignedIn = false;
 let initPromise = null;
 
+function isBrowserOnline() {
+  return typeof navigator === 'undefined' ? true : navigator.onLine;
+}
+
 // ✅ دالة مساعدة لتطبيع أي خطة قديمة أو مستوردة من Drive قبل الدمج
 function normalizePlanItem(plan) {
   if (!plan || typeof plan !== 'object') return null;
@@ -59,10 +63,19 @@ function getValidStoredToken() {
   }
 }
 
-// 1. تحميل وتهيئة Google APIs (محمي ضد التكرار في StrictMode)
+// 1. تحميل وتهيئة Google APIs (محمي ضد التكرار وحالة عدم الاتصال)
 export function initGoogleDrive() {
   if (typeof window === 'undefined') return Promise.resolve(false);
-  if (gapiInited && gisInited) return Promise.resolve(true);
+  // ✅ عدم حقن سكربتات Google عند فتح التطبيق أوفلاين لتجنب تعليق التهيئة لاحقاً عند عودة الاتصال
+  if (!isBrowserOnline()) return Promise.resolve(false);
+  if (gapiInited && gisInited) {
+    const validToken = getValidStoredToken();
+    if (validToken && window.gapi?.client) {
+      window.gapi.client.setToken({ access_token: validToken.access_token });
+      isSignedIn = true;
+    }
+    return Promise.resolve(true);
+  }
   if (initPromise) return initPromise;
 
   initPromise = new Promise((resolve, reject) => {
@@ -107,34 +120,43 @@ export function initGoogleDrive() {
       }
     };
 
-    if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) {
+    const existingApiScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
+    if (!existingApiScript) {
       const script1 = document.createElement('script');
       script1.src = 'https://apis.google.com/js/api.js';
       script1.async = true;
       script1.defer = true;
       script1.onload = loadGapi;
       script1.onerror = () => {
+        // ✅ إزالة السكربت الفاشل حتى تنجح إعادة المحاولة فور عودة الإنترنت
+        script1.remove();
         initPromise = null;
         reject(new Error('فشل تحميل Google API'));
       };
       document.body.appendChild(script1);
     } else if (window.gapi) {
       loadGapi();
+    } else {
+      existingApiScript.addEventListener('load', loadGapi, { once: true });
     }
 
-    if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
+    const existingGisScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (!existingGisScript) {
       const script2 = document.createElement('script');
       script2.src = 'https://accounts.google.com/gsi/client';
       script2.async = true;
       script2.defer = true;
       script2.onload = loadGis;
       script2.onerror = () => {
+        script2.remove();
         initPromise = null;
         reject(new Error('فشل تحميل Google Identity'));
       };
       document.body.appendChild(script2);
     } else if (window.google?.accounts?.oauth2) {
       loadGis();
+    } else {
+      existingGisScript.addEventListener('load', loadGis, { once: true });
     }
   });
 
@@ -144,6 +166,12 @@ export function initGoogleDrive() {
 // 2. تسجيل الدخول
 export function signInToDrive() {
   return new Promise(async (resolve, reject) => {
+    if (!isBrowserOnline()) {
+      return reject(
+        new Error('أنت غير متصل بالإنترنت حالياً. ستبقى بياناتك محفوظة على جهازك حتى يعود الاتصال.')
+      );
+    }
+
     // ✅ تنبيه واضح عند محاولة الربط من عنوان IP محلي (مثل 192.168.x.x) الذي ترفضه سياسة Google OAuth
     const host = window.location.hostname;
     const isLanIp =
@@ -195,7 +223,7 @@ export function signInToDrive() {
 export function signOutFromDrive() {
   return new Promise((resolve) => {
     const token = window.gapi?.client?.getToken();
-    if (token !== null && token?.access_token && window.google?.accounts?.oauth2) {
+    if (isBrowserOnline() && token !== null && token?.access_token && window.google?.accounts?.oauth2) {
       window.google.accounts.oauth2.revoke(token.access_token, () => {
         clearExpiredSession();
         resolve();
@@ -241,7 +269,7 @@ async function findPlansFile() {
 
 // 5. رفع الخطط إلى Google Drive
 export async function savePlansToDrive(plans) {
-  if (!checkSignedIn()) return false;
+  if (!isBrowserOnline() || !checkSignedIn()) return false;
 
   const normalizedPlans = (Array.isArray(plans) ? plans : [])
     .map(normalizePlanItem)
@@ -286,7 +314,7 @@ export async function savePlansToDrive(plans) {
 
 // 6. تحميل الخطط من Google Drive
 export async function loadPlansFromDrive() {
-  if (!checkSignedIn()) return null;
+  if (!isBrowserOnline() || !checkSignedIn()) return null;
 
   const fileId = await findPlansFile();
   if (!fileId) return null;
@@ -343,7 +371,7 @@ export function mergePlans(localPlans, drivePlans) {
 
 // ✅ 8. المزامنة الكاملة (جلب السحابة + دمجها مع الخطط المحلية + حفظ النتيجة محلياً وعلى السحابة)
 export async function syncFromDrive() {
-  if (!checkSignedIn()) return null;
+  if (!isBrowserOnline() || !checkSignedIn()) return null;
 
   const drivePlans = await loadPlansFromDrive();
   const localRaw = localStorage.getItem(PLANS_KEY);
@@ -371,7 +399,7 @@ export async function syncFromDrive() {
 
 // 9. رفع يدوي إجباري إلى Drive
 export async function uploadToDrive() {
-  if (!checkSignedIn()) return false;
+  if (!isBrowserOnline() || !checkSignedIn()) return false;
   const localRaw = localStorage.getItem(PLANS_KEY);
   const localPlans = localRaw ? JSON.parse(localRaw) : [];
   return await savePlansToDrive(localPlans);
